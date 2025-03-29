@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | MediaNest</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1E1E2F, #3A3A6E);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 350px;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .signUpBtn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .signUpBtn:hover {
+            background: #5563c1;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .loading img {
+            width: 30px;
+        }
+
+        .error-msg {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        p {
+            margin-top: 15px;
+        }
+
+        a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <form id="signupForm">
+    <div class="login-container">
+        <h2>Sign Up</h2>
+        <input type="text" id="Username" placeholder="Username" class="input-field"><br>
+        <input type="email" id="signupEmail" placeholder="Email" class="input-field"><br>
+        <input type="password" id="signupPassword" placeholder="Password" class="input-field">
+        
+        <button id="signUpBtn" class="signUpBtn">Sign Up</button>
+   
+        <!-- Loading Spinner -->
+<div id="loadingSpinner" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px;">
+    <p>Signing up... Please wait</p>
+</div>
+
+
+        <p class="error-msg" id="errorMsg"></p>
+
+        <p>Already have an account? <a href="login.html">Login</a></p>
+    </div>
+</form>
+<body>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+    
+        document.addEventListener("DOMContentLoaded", () => {
+            const firebaseConfig = {
+                apiKey: "AIzaSyDJc_pOi2djDqS_DJMEmFjrnwvdH5XnkmA",
+  authDomain: "medianest-e4249.firebaseapp.com",
+  projectId: "medianest-e4249",
+  storageBucket: "medianest-e4249.firebasestorage.app",
+  messagingSenderId: "206240113183",
+  appId: "1:206240113183:web:b28037de6ac10127bdeb2a"
+            };
+    
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+    
+            const signupForm = document.getElementById("signupForm");
+            const loadingSpinner = document.getElementById("loadingSpinner");
+    
+            async function registerUser(event) {
+                event.preventDefault();
+    
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+                const username = document.getElementById("username").value;
+    
+                loadingSpinner.style.display = "block"; // Show loading spinner
+    
+                try {
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    const user = userCredential.user;
+                    console.log("User created:", user.uid);
+    
+                    await setDoc(doc(db, "users", user.uid), {
+                        username: username,
+                        email: email,
+                        createdAt: new Date()
+                    });
+    
+                    alert("Signup successful!");
+                    window.location.href = "search.html";
+                } catch (error) {
+                    console.error("Signup error:", error);
+                    alert(error.message);
+                } finally {
+                    loadingSpinner.style.display = "none"; // Hide loading spinner
+                }
+            }
+    
+            if (signupForm) {
+                signupForm.addEventListener("submit", registerUser);
+            } else {
+                console.error("Error: signupForm not found in the document.");
+            }
+        });
+    </script>
+    
+    
+</body>
+</html>

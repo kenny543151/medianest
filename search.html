@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Openverse Media Search</title>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDJc_pOi2djDqS_DJMEmFjrnwvdH5XnkmA",
+  authDomain: "medianest-e4249.firebaseapp.com",
+  projectId: "medianest-e4249",
+  storageBucket: "medianest-e4249.appspot.com",
+  messagingSenderId: "206240113183",
+  appId: "1:206240113183:web:b28037de6ac10127bdeb2a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        function logoutUser() {
+            signOut(auth)
+                .then(() => {
+                    alert("Logged out successfully!");
+                    window.location.href = "login.html";
+                })
+                .catch((error) => {
+                    console.error("Logout error:", error);
+                });
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = "login.html";
+            }
+        });
+
+        window.logoutUser = logoutUser;
+
+        async function searchMedia() {
+            const searchInput = document.getElementById("searchInput").value.trim();
+            const mediaType = document.getElementById("mediaType").value;
+            const resultsContainer = document.getElementById("resultsContainer");
+            const loadingText = document.getElementById("loadingText");
+
+            resultsContainer.innerHTML = "";
+            if (!searchInput) {
+                alert("Please enter a search term.");
+                return;
+            }
+
+            loadingText.style.display = "block";
+
+            try {
+                let response, data;
+
+                if (mediaType === "audio") {
+                    const url = `https://deezerdevs-deezer.p.rapidapi.com/search?q=${encodeURIComponent(searchInput)}`;
+                    const options = {
+                        method: "GET",
+                        headers: {
+                            "X-RapidAPI-Key": "873d3966ddmshd2e261db53715dfp1c09afjsncbb3de283c5b",
+                            "X-RapidAPI-Host": "deezerdevs-deezer.p.rapidapi.com",
+                        },
+                    };
+
+                    response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`Failed to fetch audio. Status: ${response.status}`);
+                    data = await response.json();
+
+                    resultsContainer.innerHTML = "";
+
+                    if (!data.data || data.data.length === 0) {
+                        resultsContainer.innerHTML = "<p>No audio results found.</p>";
+                        return;
+                    }
+
+                    data.data.forEach((track) => {
+                        const mediaItem = document.createElement("div");
+                        mediaItem.classList.add("media-item");
+                        mediaItem.innerHTML = `
+                            <p><strong>${track.title}</strong> - ${track.artist.name}</p>
+                            <audio controls>
+                                <source src="${track.preview}" type="audio/mpeg">
+                                Your browser does not support the audio element.
+                            </audio>
+                        `;
+                        resultsContainer.appendChild(mediaItem);
+                    });
+
+                } else {
+                    const apiKey = "49549133-e1a4191fe81b4883b9237fda2";
+                    const baseUrl =
+    mediaType === "video"
+        ? `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(searchInput)}`
+        : `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(searchInput)}`;
+
+                    response = await fetch(baseUrl);
+                    if (!response.ok) throw new Error(`Failed to fetch media. Status: ${response.status}`);
+                    data = await response.json();
+
+                    resultsContainer.innerHTML = "";
+
+                    if (!data.hits || data.hits.length === 0) {
+                        resultsContainer.innerHTML = "<p>No results found.</p>";
+                        return;
+                    }
+
+                    data.hits.forEach((item) => {
+                        const mediaItem = document.createElement("div");
+                        mediaItem.classList.add("media-item");
+
+                        if (mediaType === "image") {
+                            mediaItem.innerHTML = `<img src="${item.webformatURL}" alt="${item.tags}" style="width: 100%; border-radius: 8px;">`;
+                        } if (mediaType === "image" && item.webformatURL) {
+    mediaItem.innerHTML = `<img src="${item.webformatURL}" alt="${item.tags}" style="width: 100%; border-radius: 8px;">`;
+} else if (mediaType === "video" && item.videos && item.videos.medium.url) {
+    mediaItem.innerHTML = `<video controls style="width: 100%; border-radius: 8px;">
+        <source src="${item.videos.medium.url}" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>`;
+} else {
+    mediaItem.innerHTML = `<p>Media not available</p>`;
+}
+
+
+    resultsContainer.appendChild(mediaItem);
+                    });
+                }
+
+                await saveSearchHistory(searchInput, mediaType);
+
+            } catch (error) {
+                console.error("Error fetching media:", error);
+                resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+            } finally {
+                loadingText.style.display = "none";
+            }
+        }
+
+        async function saveSearchHistory(query, mediaType) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            try {
+                await addDoc(collection(db, "users", user.uid, "searchHistory"), {
+                    query: query,
+                    mediaType: mediaType,
+                    timestamp: new Date()
+                });
+                console.log("Search saved!");
+            } catch (error) {
+                console.error("Error saving search:", error);
+            }
+        }
+
+        async function loadRecentSearches() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const searchHistoryRef = collection(db, "users", user.uid, "searchHistory");
+            const querySnapshot = await getDocs(searchHistoryRef);
+
+            const searchList = document.getElementById("recentSearches");
+            searchList.innerHTML = "";
+
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                const item = document.createElement("li");
+                item.textContent = `${data.query} (${data.mediaType})`;
+                item.onclick = () => {
+                    document.getElementById("searchInput").value = data.query;
+                    searchMedia();
+                };
+                searchList.appendChild(item);
+            });
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                loadRecentSearches();
+            }
+        });
+
+        window.searchMedia = searchMedia;
+    </script>
+</head>
+<body>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1E1E2F, #3A3A6E);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+            margin: auto;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            padding: 8px;
+            margin-bottom: 15px;
+        }
+
+        .search-box input {
+            flex: 1;
+            border: none;
+            padding: 12px;
+            border-radius: 30px;
+            font-size: 16px;
+            outline: none;
+            background: transparent;
+            color: #fff;
+        }
+
+        .search-box input::placeholder {
+            color: #ddd;
+        }
+
+        .search-box button {
+            background: #FF4081;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s ease;
+        }
+
+        .search-box button:hover {
+            background: #E91E63;
+        }
+
+        .filters select {
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .media-item {
+            background: #fff;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+
+        .media-item:hover {
+            transform: scale(1.05);
+        }
+
+        .loading {
+            display: none;
+            font-size: 16px;
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #FF4D4D;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .logout-btn:hover {
+            background: #E60000;
+        }
+        footer {
+    margin-top: 20px;
+    padding: 15px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    border-radius: 8px;
+}
+
+    </style>
+</head>
+<body>
+    <button class="logout-btn" onclick="logoutUser()">Logout</button>
+
+    <div class="container">
+        <h1><i class="fas fa-search"></i> MediaNest Search</h1>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search for media..." />
+            <button onclick="searchMedia()">🔍 Search</button>
+        </div>
+
+        <div class="filters">
+            <select style="background-color: #E60000;" id="mediaType">
+                <option value="image">Images</option>
+                <option value="audio">Audio</option>
+                <option value="video">Videos</option>
+            </select>
+        </div>
+
+        <p class="loading" id="loadingText">Loading results...</p>
+
+        <div class="results" id="resultsContainer"></div>
+    </div>
+    <footer>&copy; 2025 MediaNest – A hub for discovering open-license media . . . </footer>
+</body>
+</html>

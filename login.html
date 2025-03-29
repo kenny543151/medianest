@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | MediaNest</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1E1E2F, #3A3A6E);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 350px;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .login-btn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            background: #5563c1;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .loading img {
+            width: 30px;
+        }
+
+        .error-msg {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        p {
+            margin-top: 15px;
+        }
+
+        a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-container">
+        <h2>Login</h2>
+        <input type="email" id="email" class="input-field" placeholder="Email">
+        <input type="password" id="password" class="input-field" placeholder="Password">
+        <button id="loginBtn" class="login-btn">Login</button>
+
+        <div class="loading" id="loadingSpinner">
+            <img src="loading.gif" alt="Loading...">
+        </div>
+
+        <p class="error-msg" id="errorMsg"></p>
+
+        <p>Don't have an account? <a href="signup.html">Sign Up</a></p>
+    </div>
+
+    <script type="module">
+    // Import Firebase modules
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
+// ✅ Firebase configuration object
+const firebaseConfig = {
+    apiKey: "AIzaSyDJc_pOi2djDqS_DJMEmFjrnwvdH5XnkmA",
+    authDomain: "medianest-e4249.firebaseapp.com",
+    projectId: "medianest-e4249",
+    storageBucket: "medianest-e4249.appspot.com",
+    messagingSenderId: "206240113183",
+    appId: "1:206240113183:web:b28037de6ac10127bdeb2a"
+};
+
+// ✅ Initialize Firebase (must be done before calling getAuth)
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app); // ✅ Pass the app instance
+
+// ✅ Ensure this runs only after Firebase is loaded
+
+document.addEventListener("DOMContentLoaded", function () {
+    const loginBtn = document.getElementById("loginBtn");
+
+    if (!loginBtn) {
+        console.error("Error: loginBtn element not found!");
+        return;
+    }
+
+    loginBtn.addEventListener("click", () => {  // ✅ Changed from form submit to button click
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+
+        signInWithEmailAndPassword(auth, email, password)
+            .then((userCredential) => {
+                console.log("Login successful!");
+                window.location.href = "search.html"; // ✅ Redirect to search page
+            })
+            .catch((error) => {
+                console.error("Login error:", error.message);
+                alert("Login failed: " + error.message);
+            });
+    });
+});
+
+
+
+    </script>
+
+</body>
+</html>
