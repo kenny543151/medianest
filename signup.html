@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | MediaNest</title>
+    <title>Sign Up | MediaNest</title>
     <link rel="stylesheet" href="styles.css">
     <style>
         body {
@@ -85,54 +85,58 @@
 </head>
 <body>
     <form id="signupForm">
-    <div class="login-container">
-        <h2>Sign Up</h2>
-        <input type="text" id="Username" placeholder="Username" class="input-field"><br>
-        <input type="email" id="signupEmail" placeholder="Email" class="input-field"><br>
-        <input type="password" id="signupPassword" placeholder="Password" class="input-field">
-        
-        <button id="signUpBtn" class="signUpBtn">Sign Up</button>
-   
-        <!-- Loading Spinner -->
-<div id="loadingSpinner" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px;">
-    <p>Signing up... Please wait</p>
-</div>
+        <div class="login-container">
+            <h2>Sign Up</h2>
+            <input type="text" id="Username" placeholder="Username" class="input-field"><br>
+            <input type="email" id="signupEmail" placeholder="Email" class="input-field"><br>
+            <input type="password" id="signupPassword" placeholder="Password" class="input-field">
+            
+            <button type="submit" class="signUpBtn">Sign Up</button>
+       
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" style="display: none; font-size: 18px;">
+                <p>Signing up... Please wait</p>
+            </div>
 
+            <p class="error-msg" id="errorMsg"></p>
 
-        <p class="error-msg" id="errorMsg"></p>
+            <p>Already have an account? <a href="login.html">Login</a></p>
+        </div>
+    </form>
 
-        <p>Already have an account? <a href="login.html">Login</a></p>
-    </div>
-</form>
-<body>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
-    
-        document.addEventListener("DOMContentLoaded", () => {
-            const firebaseConfig = {
-                apiKey: "AIzaSyDJc_pOi2djDqS_DJMEmFjrnwvdH5XnkmA",
-  authDomain: "medianest-e4249.firebaseapp.com",
-  projectId: "medianest-e4249",
-  storageBucket: "medianest-e4249.firebasestorage.app",
-  messagingSenderId: "206240113183",
-  appId: "1:206240113183:web:b28037de6ac10127bdeb2a"
-            };
-    
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-    
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, initializeFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"; // ✅ Import initializeFirestore
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCdQD76M1BsVvYz1wqBG3wQjrzYFAxcFhw",
+  authDomain: "medianest-b5bbe.firebaseapp.com",
+  databaseURL: "https://medianest-b5bbe-default-rtdb.firebaseio.com",
+  projectId: "medianest-b5bbe",
+  storageBucket: "medianest-b5bbe.firebasestorage.app",
+  messagingSenderId: "38562067961",
+  appId: "1:38562067961:web:0c76369a869e4270ff3928"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// 🔥 Fix: Use initializeFirestore properly
+const db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    useFetchStreams: false
+});
+
             const signupForm = document.getElementById("signupForm");
             const loadingSpinner = document.getElementById("loadingSpinner");
     
             async function registerUser(event) {
                 event.preventDefault();
     
-                const email = document.getElementById("email").value;
-                const password = document.getElementById("password").value;
-                const username = document.getElementById("username").value;
+                const email = document.getElementById("signupEmail").value;
+                const password = document.getElementById("signupPassword").value;
+                const username = document.getElementById("Username").value;
     
                 loadingSpinner.style.display = "block"; // Show loading spinner
     
@@ -141,6 +145,7 @@
                     const user = userCredential.user;
                     console.log("User created:", user.uid);
     
+                    // ✅ Save user to Firestore
                     await setDoc(doc(db, "users", user.uid), {
                         username: username,
                         email: email,
@@ -162,9 +167,8 @@
             } else {
                 console.error("Error: signupForm not found in the document.");
             }
-        });
+       
     </script>
-    
     
 </body>
 </html>
