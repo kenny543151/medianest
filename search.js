@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, disableNetwork } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
@@ -15,6 +14,7 @@ const firebaseConfig = {
 };
 
 // Start Firebase
+console.log("Initializing Firebase...");
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -30,6 +30,7 @@ disableNetwork(db).then(() => {
 export function logoutUser() {
   signOut(auth)
     .then(() => {
+      console.log("User logged out successfully");
       alert("Logged out!");
       window.location.href = "login.html";
     })
@@ -41,14 +42,14 @@ export function logoutUser() {
 
 // Check if user is logged in
 onAuthStateChanged(auth, (user) => {
+  console.log("Auth state changed, user:", user ? user.uid : null);
   if (!user) {
-    // Go to login if not signed in
     console.log("No user logged in, redirecting to login");
     window.location.href = "login.html";
   } else {
     // Wait for auth to settle, then load searches
     console.log("User authenticated:", user.uid);
-    setTimeout(() => loadRecentSearches(user), 1000); // Delay to ensure auth is ready
+    setTimeout(() => loadRecentSearches(user), 1500); // Increased delay for stability
   }
 });
 
@@ -73,6 +74,7 @@ export async function searchMedia() {
   try {
     // Build API URL
     const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
+    console.log("Fetching from API:", apiUrl);
     const response = await fetch(apiUrl);
     let errorMessage = `Failed to fetch media. Status: ${response.status}`;
     if (!response.ok) {
@@ -106,8 +108,9 @@ export async function searchMedia() {
       mediaItem.classList.add("media-item");
 
       if (selectedMediaType === "images" && item.url) {
+        console.log("Rendering image:", item.url); // Log image URL
         mediaItem.innerHTML = `
-          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'; this.alt='Image not available';">
+          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
           <h3 class="media-title">${item.title || 'Untitled'}</h3>
           <p>Creator: ${item.creator || 'Unknown'}</p>
           <p>License: ${item.license || 'Unknown'}</p>
@@ -161,7 +164,7 @@ async function saveSearchHistory(query, mediaType, license) {
   } catch (error) {
     console.error("Error saving search:", error);
     if (error.code === "permission-denied") {
-      console.error("Check Firebase security rules for users/{userId}/searchHistory");
+      console.error("Check Firebase security rules for users/{userId}/searchHistory or authorized domains");
     }
   }
 }
@@ -188,7 +191,8 @@ async function loadRecentSearches(user) {
   // Use passed user or current user
   const currentUser = user || auth.currentUser;
   if (!currentUser) {
-    console.error("No user logged in for recent searches");
+    console.error("No user logged in for recent searches, redirecting to login");
+    window.location.href = "login.html";
     return;
   }
 
@@ -235,7 +239,7 @@ async function loadRecentSearches(user) {
     if (error.code === "unavailable" || error.message.includes("storage")) {
       errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using another browser.";
     } else if (error.code === "permission-denied") {
-      errorMessage = "Unable to load recent searches: Check Firebase security rules or authorized domains in Firebase Console.";
+      errorMessage = "Unable to load recent searches: Check Firebase security rules or ensure 'kenny543151.github.io' is added to Authorized Domains in Firebase Console.";
     } else if (error.code === "failed-precondition") {
       errorMessage = "Unable to load recent searches: Ensure Firestore is enabled and the database is accessible.";
     }
