@@ -89,6 +89,7 @@ export async function searchMedia() {
       throw new Error(errorMessage);
     }
     const data = await response.json();
+    console.log("Openverse API response:", data); // Log API response for debugging
 
     // Clear results container
     resultsContainer.innerHTML = "";
@@ -106,7 +107,7 @@ export async function searchMedia() {
 
       if (selectedMediaType === "images" && item.url) {
         mediaItem.innerHTML = `
-          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;">
+          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'; this.alt='Image not available';">
           <h3 class="media-title">${item.title || 'Untitled'}</h3>
           <p>Creator: ${item.creator || 'Unknown'}</p>
           <p>License: ${item.license || 'Unknown'}</p>
@@ -159,6 +160,9 @@ async function saveSearchHistory(query, mediaType, license) {
     loadRecentSearches(currentUser);
   } catch (error) {
     console.error("Error saving search:", error);
+    if (error.code === "permission-denied") {
+      console.error("Check Firebase security rules for users/{userId}/searchHistory");
+    }
   }
 }
 
@@ -230,6 +234,10 @@ async function loadRecentSearches(user) {
     let errorMessage = "Error loading recent searches: " + error.message;
     if (error.code === "unavailable" || error.message.includes("storage")) {
       errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using another browser.";
+    } else if (error.code === "permission-denied") {
+      errorMessage = "Unable to load recent searches: Check Firebase security rules or authorized domains in Firebase Console.";
+    } else if (error.code === "failed-precondition") {
+      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled and the database is accessible.";
     }
     recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
   }
