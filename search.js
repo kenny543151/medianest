@@ -26,6 +26,22 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
+// Function to retry authentication
+async function retryAuth(maxAttempts = 3, delay = 2000) {
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    if (auth.currentUser) {
+      console.log("Auth retry successful, user:", auth.currentUser.uid);
+      return auth.currentUser;
+    }
+    console.log(`Auth retry attempt ${attempts + 1}/${maxAttempts}, waiting ${delay}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    attempts++;
+  }
+  console.error("Auth retry failed after max attempts");
+  return null;
+}
+
 // Function to log out user
 export function logoutUser() {
   signOut(auth)
@@ -41,15 +57,20 @@ export function logoutUser() {
 }
 
 // Check if user is logged in
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   console.log("Auth state changed, user:", user ? user.uid : null);
   if (!user) {
-    console.log("No user logged in, redirecting to login");
-    window.location.href = "login.html";
+    console.log("No user logged in, attempting retry...");
+    const retriedUser = await retryAuth();
+    if (!retriedUser) {
+      console.log("No user after retry, redirecting to login");
+      window.location.href = "login.html";
+    } else {
+      setTimeout(() => loadRecentSearches(retriedUser), 1500);
+    }
   } else {
-    // Wait for auth to settle, then load searches
     console.log("User authenticated:", user.uid);
-    setTimeout(() => loadRecentSearches(user), 1500); // Increased delay for stability
+    setTimeout(() => loadRecentSearches(user), 1500);
   }
 });
 
@@ -91,7 +112,7 @@ export async function searchMedia() {
       throw new Error(errorMessage);
     }
     const data = await response.json();
-    console.log("Openverse API response:", data); // Log API response for debugging
+    console.log("Openverse API response:", JSON.stringify(data, null, 2)); // Detailed logging
 
     // Clear results container
     resultsContainer.innerHTML = "";
@@ -108,9 +129,9 @@ export async function searchMedia() {
       mediaItem.classList.add("media-item");
 
       if (selectedMediaType === "images" && item.url) {
-        console.log("Rendering image:", item.url); // Log image URL
+        console.log("Rendering image:", item.url);
         mediaItem.innerHTML = `
-          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://via.placeholder.com/150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
+          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
           <h3 class="media-title">${item.title || 'Untitled'}</h3>
           <p>Creator: ${item.creator || 'Unknown'}</p>
           <p>License: ${item.license || 'Unknown'}</p>
@@ -146,7 +167,7 @@ export async function searchMedia() {
 
 // Function to save search history
 async function saveSearchHistory(query, mediaType, license) {
-  const currentUser = auth.currentUser;
+  const currentUser = auth.currentUser || await retryAuth();
   if (!currentUser) {
     console.error("No user logged in, cannot save search");
     return;
@@ -171,7 +192,7 @@ async function saveSearchHistory(query, mediaType, license) {
 
 // Function to delete search history
 async function deleteSearchHistory(docId) {
-  const currentUser = auth.currentUser;
+  const currentUser = auth.currentUser || await retryAuth();
   if (!currentUser) {
     console.error("No user logged in, cannot delete search");
     return;
@@ -188,8 +209,7 @@ async function deleteSearchHistory(docId) {
 
 // Function to load recent searches
 async function loadRecentSearches(user) {
-  // Use passed user or current user
-  const currentUser = user || auth.currentUser;
+  const currentUser = user || auth.currentUser || await retryAuth();
   if (!currentUser) {
     console.error("No user logged in for recent searches, redirecting to login");
     window.location.href = "login.html";
@@ -237,11 +257,11 @@ async function loadRecentSearches(user) {
     console.error("Error loading recent searches:", error);
     let errorMessage = "Error loading recent searches: " + error.message;
     if (error.code === "unavailable" || error.message.includes("storage")) {
-      errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using another browser.";
+      errorMessage = "Unable to load recent searches due to browser privacy settings. Disable tracking prevention in Settings > Privacy (Safari/Edge) or Privacy & Security (Firefox), or try Chrome.";
     } else if (error.code === "permission-denied") {
-      errorMessage = "Unable to load recent searches: Check Firebase security rules or ensure 'kenny543151.github.io' is added to Authorized Domains in Firebase Console.";
+      errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains and security rules allow access.";
     } else if (error.code === "failed-precondition") {
-      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled and the database is accessible.";
+      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
     }
     recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
   }
