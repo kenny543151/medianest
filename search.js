@@ -27,7 +27,7 @@ disableNetwork(db).then(() => {
 });
 
 // Function to retry authentication
-async function retryAuth(maxAttempts = 3, delay = 2000) {
+async function retryAuth(maxAttempts = 5, delay = 2000) {
   let attempts = 0;
   while (attempts < maxAttempts) {
     if (auth.currentUser) {
@@ -40,6 +40,26 @@ async function retryAuth(maxAttempts = 3, delay = 2000) {
   }
   console.error("Auth retry failed after max attempts");
   return null;
+}
+
+// Function to retry Firestore query
+async function retryFirestoreQuery(queryFn, maxAttempts = 3, delay = 2000) {
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    try {
+      const result = await queryFn();
+      console.log("Firestore query successful");
+      return result;
+    } catch (error) {
+      console.error(`Firestore query attempt ${attempts + 1}/${maxAttempts} failed:`, error);
+      attempts++;
+      if (attempts < maxAttempts) {
+        console.log(`Retrying Firestore query in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw new Error("Firestore query failed after max attempts");
 }
 
 // Function to log out user
@@ -66,11 +86,11 @@ onAuthStateChanged(auth, async (user) => {
       console.log("No user after retry, redirecting to login");
       window.location.href = "login.html";
     } else {
-      setTimeout(() => loadRecentSearches(retriedUser), 1500);
+      setTimeout(() => loadRecentSearches(retriedUser), 2000);
     }
   } else {
     console.log("User authenticated:", user.uid);
-    setTimeout(() => loadRecentSearches(user), 1500);
+    setTimeout(() => loadRecentSearches(user), 2000);
   }
 });
 
@@ -112,7 +132,7 @@ export async function searchMedia() {
       throw new Error(errorMessage);
     }
     const data = await response.json();
-    console.log("Openverse API response:", JSON.stringify(data, null, 2)); // Detailed logging
+    console.log("Openverse API response:", JSON.stringify(data, null, 2));
 
     // Clear results container
     resultsContainer.innerHTML = "";
@@ -174,11 +194,13 @@ async function saveSearchHistory(query, mediaType, license) {
   }
 
   try {
-    await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), {
-      query,
-      mediaType,
-      license,
-      timestamp: new Date()
+    await retryFirestoreQuery(async () => {
+      return await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), {
+        query,
+        mediaType,
+        license,
+        timestamp: new Date()
+      });
     });
     console.log("Saved search for user:", currentUser.uid);
     loadRecentSearches(currentUser);
@@ -199,7 +221,9 @@ async function deleteSearchHistory(docId) {
   }
 
   try {
-    await deleteDoc(doc(db, "users", currentUser.uid, "searchHistory", docId));
+    await retryFirestoreQuery(async () => {
+      return await deleteDoc(doc(db, "users", currentUser.uid, "searchHistory", docId));
+    });
     console.log("Deleted search for user:", currentUser.uid);
     loadRecentSearches(currentUser);
   } catch (error) {
@@ -220,9 +244,9 @@ async function loadRecentSearches(user) {
   recentSearchesList.innerHTML = "<p>Loading recent searches...</p>";
 
   try {
-    console.log("Fetching recent searches for user:", currentUser.uid);
-    const searchHistoryRef = collection(db, "users", currentUser.uid, "searchHistory");
-    const querySnapshot = await getDocs(searchHistoryRef);
+    const querySnapshot = await retryFirestoreQuery(async () => {
+      return await getDocs(collection(db, "users", currentUser.uid, "searchHistory"));
+    });
 
     // Clear loading message
     recentSearchesList.innerHTML = "";
@@ -257,7 +281,7 @@ async function loadRecentSearches(user) {
     console.error("Error loading recent searches:", error);
     let errorMessage = "Error loading recent searches: " + error.message;
     if (error.code === "unavailable" || error.message.includes("storage")) {
-      errorMessage = "Unable to load recent searches due to browser privacy settings. Disable tracking prevention in Settings > Privacy (Safari/Edge) or Privacy & Security (Firefox), or try Chrome.";
+      errorMessage = "Unable to load recent searches due to browser privacy settings. Disable tracking prevention in Settings > Privacy (Safari/Edge) or Privacy & Security (Firefox), or try Chrome. Then, refresh the page.";
     } else if (error.code === "permission-denied") {
       errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains and security rules allow access.";
     } else if (error.code === "failed-precondition") {
