@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, disableNetwork } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
@@ -83,17 +84,44 @@ async function retryDOMUpdate(updateFn, maxAttempts = 3, delay = 500) {
   console.error("DOM update failed after max attempts");
 }
 
+// Function to validate DOM elements
+function validateDOMElements() {
+  const recentSearchesList = document.getElementById("recentSearches");
+  const resultsContainer = document.getElementById("resultsContainer");
+  const loadingIndicator = document.getElementById("loadingText");
+  if (!recentSearchesList) console.error("Error: <ul id='recentSearches'> not found in DOM");
+  if (!resultsContainer) console.error("Error: <div id='resultsContainer'> not found in DOM");
+  if (!loadingIndicator) console.error("Error: <div id='loadingText'> not found in DOM");
+  return { recentSearchesList, resultsContainer, loadingIndicator };
+}
+
+// Function to test image URL
+async function testImageUrl(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    if (response.ok) {
+      console.log(`Image URL valid: ${url}`);
+      return true;
+    } else {
+      console.error(`Image URL invalid (status ${response.status}): ${url}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error testing image URL ${url}:`, error);
+    return false;
+  }
+}
+
 // Function to load cached searches from localStorage
 function loadCachedSearches() {
-  const recentSearchesList = document.getElementById("recentSearches");
-  if (!recentSearchesList) {
-    console.error("recentSearches element not found in DOM");
-    return;
-  }
+  const { recentSearchesList } = validateDOMElements();
+  if (!recentSearchesList) return;
+
   retryDOMUpdate(() => {
     const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
     if (cachedSearches.length === 0) {
       recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
+      console.log("No cached searches found");
       return;
     }
     recentSearchesList.innerHTML = "";
@@ -114,6 +142,11 @@ function loadCachedSearches() {
       };
       recentSearchesList.appendChild(listItem);
     });
+    // Force DOM refresh
+    recentSearchesList.style.display = 'none';
+    recentSearchesList.offsetHeight; // Trigger reflow
+    recentSearchesList.style.display = 'block';
+    console.log("Forced DOM refresh for recentSearches");
   });
 }
 
@@ -145,6 +178,7 @@ export function logoutUser() {
 // Check if user is logged in
 onAuthStateChanged(auth, async (user) => {
   console.log("Auth state changed, user:", user ? user.uid : null);
+  validateDOMElements();
   if (!user) {
     console.log("No user logged in, attempting retry...");
     const retriedUser = await retryAuth();
@@ -163,19 +197,12 @@ onAuthStateChanged(auth, async (user) => {
 
 // Function to search for media
 export async function searchMedia() {
+  const { resultsContainer, loadingIndicator } = validateDOMElements();
   const searchInput = document.getElementById("searchInput").value.trim();
   const selectedMediaType = document.getElementById("mediaType").value;
   const selectedLicense = document.getElementById("licenseType").value;
-  const resultsContainer = document.getElementById("resultsContainer");
-  const loadingIndicator = document.getElementById("loadingText");
 
-  if (!resultsContainer || !loadingIndicator) {
-    console.error("resultsContainer or loadingIndicator not found in DOM");
-    return;
-  }
-
-  // Clear previous results
-  resultsContainer.innerHTML = "";
+  if (!resultsContainer || !loadingIndicator) return;
   if (!searchInput) {
     alert("Please enter a search term.");
     return;
@@ -219,12 +246,17 @@ export async function searchMedia() {
     }
 
     // Show search results
-    data.results.forEach((item, index) => {
+    for (const [index, item] of data.results.entries()) {
       console.log(`Processing item ${index}:`, item);
       if (!item.url) {
         console.error(`Item ${index} has no URL`);
-        return;
+        continue;
       }
+
+      // Test image URL
+      const isValidUrl = selectedMediaType === "images" ? await testImageUrl(item.url) : true;
+      if (!isValidUrl) continue;
+
       const mediaItem = document.createElement("div");
       mediaItem.classList.add("media-item");
 
@@ -252,13 +284,15 @@ export async function searchMedia() {
         mediaItem.innerHTML = `<p>Media not available</p>`;
       }
 
-      try {
+      retryDOMUpdate(() => {
         resultsContainer.appendChild(mediaItem);
         console.log(`Appended mediaItem ${index} to resultsContainer`);
-      } catch (error) {
-        console.error(`Failed to append mediaItem ${index}:`, error);
-      }
-    });
+        // Force DOM refresh
+        resultsContainer.style.display = 'none';
+        resultsContainer.offsetHeight; // Trigger reflow
+        resultsContainer.style.display = 'block';
+      });
+    }
 
   } catch (error) {
     console.error("Error fetching media:", error);
@@ -327,14 +361,10 @@ async function deleteSearchHistory(docId) {
 
 // Function to load recent searches
 async function loadRecentSearches(user) {
+  const { recentSearchesList } = validateDOMElements();
+  if (!recentSearchesList) return;
+
   const currentUser = user || auth.currentUser || await retryAuth();
-  const recentSearchesList = document.getElementById("recentSearches");
-
-  if (!recentSearchesList) {
-    console.error("recentSearches element not found in DOM");
-    return;
-  }
-
   if (!currentUser) {
     console.error("No user logged in for recent searches, loading cached searches");
     loadCachedSearches();
@@ -394,6 +424,11 @@ async function loadRecentSearches(user) {
         };
         recentSearchesList.appendChild(listItem);
       });
+      // Force DOM refresh
+      recentSearchesList.style.display = 'none';
+      recentSearchesList.offsetHeight; // Trigger reflow
+      recentSearchesList.style.display = 'block';
+      console.log("Forced DOM refresh for recentSearches");
     });
   } catch (error) {
     console.error("Error loading recent searches from Firestore:", error);
@@ -403,7 +438,7 @@ async function loadRecentSearches(user) {
     } else if (error.code === "permission-denied") {
       errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains and security rules allow access.";
     } else if (error.code === "failed-precondition") {
-      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
+      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firefox Console.";
     }
     retryDOMUpdate(() => {
       recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
