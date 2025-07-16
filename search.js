@@ -27,63 +27,6 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
-// Function to retry authentication with exponential backoff
-async function retryAuth(maxAttempts = 8, baseDelay = 2000) {
-  let attempts = 0;
-  while (attempts < maxAttempts) {
-    if (auth.currentUser) {
-      console.log("Auth retry successful, user:", auth.currentUser.uid);
-      return auth.currentUser;
-    }
-    const delay = baseDelay * Math.pow(2, attempts);
-    console.log(`Auth retry attempt ${attempts + 1}/${maxAttempts}, waiting ${delay}ms...`);
-    await new Promise(resolve => setTimeout(resolve, delay));
-    attempts++;
-  }
-  console.error("Auth retry failed after max attempts");
-  return null;
-}
-
-// Function to retry Firestore query
-async function retryFirestoreQuery(queryFn, maxAttempts = 3, delay = 2000) {
-  let attempts = 0;
-  while (attempts < maxAttempts) {
-    try {
-      const result = await queryFn();
-      console.log("Firestore query successful");
-      return result;
-    } catch (error) {
-      console.error(`Firestore query attempt ${attempts + 1}/${maxAttempts} failed:`, error);
-      attempts++;
-      if (attempts < maxAttempts) {
-        console.log(`Retrying Firestore query in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  throw new Error("Firestore query failed after max attempts");
-}
-
-// Function to retry DOM updates
-async function retryDOMUpdate(updateFn, maxAttempts = 3, delay = 500) {
-  let attempts = 0;
-  while (attempts < maxAttempts) {
-    try {
-      updateFn();
-      console.log("DOM update successful");
-      return;
-    } catch (error) {
-      console.error(`DOM update attempt ${attempts + 1}/${maxAttempts} failed:`, error);
-      attempts++;
-      if (attempts < maxAttempts) {
-        console.log(`Retrying DOM update in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  console.error("DOM update failed after max attempts");
-}
-
 // Function to validate and log DOM elements
 function validateDOMElements() {
   const recentSearchesList = document.getElementById("recentSearches");
@@ -115,29 +58,12 @@ function validateDOMElements() {
   return { recentSearchesList, resultsContainer, loadingIndicator };
 }
 
-// Function to test image URL
-async function testImageUrl(url) {
-  try {
-    const response = await fetch(url, { method: 'HEAD', mode: 'cors' });
-    if (response.ok) {
-      console.log(`Image URL valid: ${url}`);
-      return true;
-    } else {
-      console.error(`Image URL invalid (status ${response.status}): ${url}`);
-      return false;
-    }
-  } catch (error) {
-    console.error(`Error testing image URL ${url}:`, error);
-    return false;
-  }
-}
-
 // Function to load cached searches from localStorage
 function loadCachedSearches() {
   const { recentSearchesList } = validateDOMElements();
   if (!recentSearchesList) return;
 
-  retryDOMUpdate(() => {
+  try {
     const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
     if (cachedSearches.length === 0) {
       recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
@@ -162,24 +88,22 @@ function loadCachedSearches() {
       };
       recentSearchesList.appendChild(listItem);
     });
-    // Force DOM refresh
-    requestAnimationFrame(() => {
-      recentSearchesList.style.display = 'none';
-      recentSearchesList.offsetHeight; // Trigger reflow
-      recentSearchesList.style.display = 'block';
-      console.log("Forced DOM refresh for recentSearches");
-    });
-  });
+  } catch (error) {
+    console.error("Error loading cached searches:", error);
+    recentSearchesList.innerHTML = "<p>Unable to load cached searches due to browser restrictions.</p>";
+  }
 }
 
 // Function to delete cached search
 function deleteCachedSearch(index) {
-  retryDOMUpdate(() => {
+  try {
     const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
     cachedSearches.splice(index, 1);
     localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
     loadCachedSearches();
-  });
+  } catch (error) {
+    console.error("Error deleting cached search:", error);
+  }
 }
 
 // Function to log out user
@@ -198,28 +122,22 @@ export function logoutUser() {
 }
 
 // Check if user is logged in
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
   console.log("Auth state changed, user:", user ? user.uid : null);
   validateDOMElements();
   if (!user) {
-    console.log("No user logged in, attempting retry...");
-    const retriedUser = await retryAuth();
-    if (!retriedUser) {
-      console.log("No user after retry, loading cached searches");
-      loadCachedSearches();
-      window.location.href = "login.html";
-    } else {
-      setTimeout(() => loadRecentSearches(retriedUser), 2000);
-    }
+    console.log("No user logged in, loading cached searches");
+    loadCachedSearches();
+    window.location.href = "login.html";
   } else {
     console.log("User authenticated:", user.uid);
-    setTimeout(() => loadRecentSearches(user), 2000);
+    setTimeout(() => loadRecentSearches(user), 1000);
   }
 });
 
 // Function to search for media
 export async function searchMedia() {
-  const { resultsContainer, loadingIndicator } = validateDOMElements();
+  const { recentSearchesList, resultsContainer, loadingIndicator } = validateDOMElements();
   const searchInput = document.getElementById("searchInput").value.trim();
   const selectedMediaType = document.getElementById("mediaType").value;
   const selectedLicense = document.getElementById("licenseType").value;
@@ -231,9 +149,7 @@ export async function searchMedia() {
   }
 
   // Show loading message
-  requestAnimationFrame(() => {
-    loadingIndicator.style.display = "block";
-  });
+  loadingIndicator.style.display = "block";
 
   try {
     // Save search to history before fetching
@@ -270,30 +186,14 @@ export async function searchMedia() {
     }
 
     // Show search results
-    for (const [index, item] of data.results.entries()) {
-      console.log(`Processing item ${index}:`, item);
-      if (!item.url) {
-        console.error(`Item ${index} has no URL`);
-        continue;
-      }
-
-      // Test image URL or use fallback
-      let imageUrl = item.url;
-      if (selectedMediaType === "images") {
-        const isValidUrl = await testImageUrl(item.url);
-        if (!isValidUrl) {
-          console.warn(`Falling back to placeholder for item ${index}`);
-          imageUrl = "https://placehold.co/150x150?text=Image+Not+Found";
-        }
-      }
-
+    data.results.forEach((item) => {
       const mediaItem = document.createElement("div");
       mediaItem.classList.add("media-item");
 
-      if (selectedMediaType === "images") {
-        console.log("Rendering image:", imageUrl);
+      if (selectedMediaType === "images" && item.url) {
+        console.log("Rendering image:", item.url);
         mediaItem.innerHTML = `
-          <img src="${imageUrl}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${imageUrl}');">
+          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
           <h3 class="media-title">${item.title || 'Untitled'}</h3>
           <p>Creator: ${item.creator || 'Unknown'}</p>
           <p>License: ${item.license || 'Unknown'}</p>
@@ -310,20 +210,16 @@ export async function searchMedia() {
           </audio>
         `;
       } else {
-        console.error(`Item ${index} is not renderable:`, item);
+        console.error("Media not available for item:", item);
         mediaItem.innerHTML = `<p>Media not available</p>`;
       }
 
-      retryDOMUpdate(() => {
-        resultsContainer.appendChild(mediaItem);
-        console.log(`Appended mediaItem ${index} to resultsContainer`);
-        // Force DOM refresh
-        requestAnimationFrame(() => {
-          resultsContainer.style.display = 'none';
-          resultsContainer.offsetHeight; // Trigger reflow
-          resultsContainer.style.display = 'block';
-        });
-      });
+      resultsContainer.appendChild(mediaItem);
+    });
+
+    // Refresh recent searches
+    if (recentSearchesList) {
+      loadCachedSearches();
     }
 
   } catch (error) {
@@ -331,15 +227,13 @@ export async function searchMedia() {
     resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
   } finally {
     // Hide loading message
-    requestAnimationFrame(() => {
-      loadingIndicator.style.display = "none";
-    });
+    loadingIndicator.style.display = "none";
   }
 }
 
 // Function to save search history
 async function saveSearchHistory(query, mediaType, license) {
-  const currentUser = auth.currentUser || await retryAuth();
+  const currentUser = auth.currentUser;
   const searchData = { query, mediaType, license, timestamp: new Date() };
 
   // Save to localStorage first
@@ -360,11 +254,9 @@ async function saveSearchHistory(query, mediaType, license) {
   }
 
   try {
-    await retryFirestoreQuery(async () => {
-      return await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData);
-    });
+    await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData);
     console.log("Saved search to Firestore for user:", currentUser.uid);
-    loadRecentSearches(currentUser); // Force reload
+    loadRecentSearches(currentUser);
   } catch (error) {
     console.error("Error saving search to Firestore:", error);
     if (error.code === "permission-denied") {
@@ -375,22 +267,19 @@ async function saveSearchHistory(query, mediaType, license) {
 
 // Function to delete search history
 async function deleteSearchHistory(docId) {
-  const currentUser = auth.currentUser || await retryAuth();
+  const currentUser = auth.currentUser;
   if (!currentUser) {
     console.error("No user logged in, cannot delete search");
     return;
   }
 
-  retryDOMUpdate(() => {
-    retryFirestoreQuery(async () => {
-      return await deleteDoc(doc(db, "users", currentUser.uid, "searchHistory", docId));
-    }).then(() => {
-      console.log("Deleted search for user:", currentUser.uid);
-      loadRecentSearches(currentUser);
-    }).catch((error) => {
-      console.error("Error deleting search:", error);
-    });
-  });
+  try {
+    await deleteDoc(doc(db, "users", currentUser.uid, "searchHistory", docId));
+    console.log("Deleted search for user:", currentUser.uid);
+    loadRecentSearches(currentUser);
+  } catch (error) {
+    console.error("Error deleting search:", error);
+  }
 }
 
 // Function to load recent searches
@@ -398,88 +287,58 @@ async function loadRecentSearches(user) {
   const { recentSearchesList } = validateDOMElements();
   if (!recentSearchesList) return;
 
-  const currentUser = user || auth.currentUser || await retryAuth();
+  const currentUser = user || auth.currentUser;
   if (!currentUser) {
     console.error("No user logged in for recent searches, loading cached searches");
     loadCachedSearches();
     return;
   }
 
-  retryDOMUpdate(() => {
-    recentSearchesList.innerHTML = "<p>Loading recent searches...</p>";
-  });
+  recentSearchesList.innerHTML = "<p>Loading recent searches...</p>";
 
   try {
-    const querySnapshot = await retryFirestoreQuery(async () => {
-      return await getDocs(collection(db, "users", currentUser.uid, "searchHistory"));
-    });
+    console.log("Fetching recent searches for user:", currentUser.uid);
+    const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "searchHistory"));
 
-    retryDOMUpdate(() => {
-      // Clear loading message
-      recentSearchesList.innerHTML = "";
+    // Clear loading message
+    recentSearchesList.innerHTML = "";
 
-      // Check if no searches exist
-      if (querySnapshot.empty) {
-        console.log("No recent searches found in Firestore for user:", currentUser.uid);
-        loadCachedSearches();
-        return;
-      }
+    // Check if no searches exist
+    if (querySnapshot.empty) {
+      console.log("No recent searches found in Firestore for user:", currentUser.uid);
+      loadCachedSearches();
+      return;
+    }
 
-      // Show each search
-      const searches = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        console.log("Found search in Firestore:", data);
-        searches.push({ id: doc.id, ...data });
-      });
-
-      // Update localStorage cache
-      try {
-        localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
-      } catch (error) {
-        console.error("Error updating localStorage cache:", error);
-      }
-
-      // Display searches
-      recentSearchesList.innerHTML = "";
-      searches.forEach((data) => {
-        const listItem = document.createElement("li");
-        listItem.innerHTML = `
-          ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
-          <button onclick="deleteSearchHistory('${data.id}')" aria-label="Delete search">Delete</button>
-        `;
-        listItem.onclick = (e) => {
-          if (e.target.tagName !== "BUTTON") {
-            document.getElementById("searchInput").value = data.query;
-            document.getElementById("mediaType").value = data.mediaType;
-            document.getElementById("licenseType").value = data.license || "";
-            searchMedia();
-          }
-        };
-        recentSearchesList.appendChild(listItem);
-      });
-      // Force DOM refresh
-      requestAnimationFrame(() => {
-        recentSearchesList.style.display = 'none';
-        recentSearchesList.offsetHeight; // Trigger reflow
-        recentSearchesList.style.display = 'block';
-        console.log("Forced DOM refresh for recentSearches");
-      });
+    // Show each search
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      console.log("Found search:", data);
+      const listItem = document.createElement("li");
+      listItem.innerHTML = `
+        ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
+        <button onclick="deleteSearchHistory('${doc.id}')" aria-label="Delete search">Delete</button>
+      `;
+      listItem.onclick = (e) => {
+        if (e.target.tagName !== "BUTTON") {
+          document.getElementById("searchInput").value = data.query;
+          document.getElementById("mediaType").value = data.mediaType;
+          document.getElementById("licenseType").value = data.license || "";
+          searchMedia();
+        }
+      };
+      recentSearchesList.appendChild(listItem);
     });
   } catch (error) {
-    console.error("Error loading recent searches from Firestore:", error);
+    console.error("Error loading recent searches:", error);
     let errorMessage = "Error loading recent searches: " + error.message;
     if (error.code === "unavailable" || error.message.includes("storage")) {
-      errorMessage = "Unable to load recent searches due to browser privacy settings. Disable tracking prevention in Settings > Privacy (Safari/Edge) or Privacy & Security (Firefox), or try Chrome. Then, refresh the page.";
+      errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using Chrome.";
     } else if (error.code === "permission-denied") {
-      errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains and security rules allow access.";
-    } else if (error.code === "failed-precondition") {
-      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
+      errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains.";
     }
-    retryDOMUpdate(() => {
-      recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
-      loadCachedSearches();
-    });
+    recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
+    loadCachedSearches();
   }
 }
 
