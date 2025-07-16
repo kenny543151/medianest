@@ -84,13 +84,33 @@ async function retryDOMUpdate(updateFn, maxAttempts = 3, delay = 500) {
   console.error("DOM update failed after max attempts");
 }
 
-// Function to validate DOM elements
+// Function to validate and log DOM elements
 function validateDOMElements() {
   const recentSearchesList = document.getElementById("recentSearches");
   const resultsContainer = document.getElementById("resultsContainer");
   const loadingIndicator = document.getElementById("loadingText");
-  if (!recentSearchesList) console.error("Error: <ul id='recentSearches'> not found in DOM");
-  if (!resultsContainer) console.error("Error: <div id='resultsContainer'> not found in DOM");
+  if (recentSearchesList) {
+    const styles = window.getComputedStyle(recentSearchesList);
+    console.log("recentSearches styles:", {
+      display: styles.display,
+      visibility: styles.visibility,
+      opacity: styles.opacity,
+      height: styles.height
+    });
+  } else {
+    console.error("Error: <ul id='recentSearches'> not found in DOM");
+  }
+  if (resultsContainer) {
+    const styles = window.getComputedStyle(resultsContainer);
+    console.log("resultsContainer styles:", {
+      display: styles.display,
+      visibility: styles.visibility,
+      opacity: styles.opacity,
+      height: styles.height
+    });
+  } else {
+    console.error("Error: <div id='resultsContainer'> not found in DOM");
+  }
   if (!loadingIndicator) console.error("Error: <div id='loadingText'> not found in DOM");
   return { recentSearchesList, resultsContainer, loadingIndicator };
 }
@@ -98,7 +118,7 @@ function validateDOMElements() {
 // Function to test image URL
 async function testImageUrl(url) {
   try {
-    const response = await fetch(url, { method: 'HEAD' });
+    const response = await fetch(url, { method: 'HEAD', mode: 'cors' });
     if (response.ok) {
       console.log(`Image URL valid: ${url}`);
       return true;
@@ -143,10 +163,12 @@ function loadCachedSearches() {
       recentSearchesList.appendChild(listItem);
     });
     // Force DOM refresh
-    recentSearchesList.style.display = 'none';
-    recentSearchesList.offsetHeight; // Trigger reflow
-    recentSearchesList.style.display = 'block';
-    console.log("Forced DOM refresh for recentSearches");
+    requestAnimationFrame(() => {
+      recentSearchesList.style.display = 'none';
+      recentSearchesList.offsetHeight; // Trigger reflow
+      recentSearchesList.style.display = 'block';
+      console.log("Forced DOM refresh for recentSearches");
+    });
   });
 }
 
@@ -209,7 +231,9 @@ export async function searchMedia() {
   }
 
   // Show loading message
-  loadingIndicator.style.display = "block";
+  requestAnimationFrame(() => {
+    loadingIndicator.style.display = "block";
+  });
 
   try {
     // Save search to history before fetching
@@ -253,17 +277,23 @@ export async function searchMedia() {
         continue;
       }
 
-      // Test image URL
-      const isValidUrl = selectedMediaType === "images" ? await testImageUrl(item.url) : true;
-      if (!isValidUrl) continue;
+      // Test image URL or use fallback
+      let imageUrl = item.url;
+      if (selectedMediaType === "images") {
+        const isValidUrl = await testImageUrl(item.url);
+        if (!isValidUrl) {
+          console.warn(`Falling back to placeholder for item ${index}`);
+          imageUrl = "https://placehold.co/150x150?text=Image+Not+Found";
+        }
+      }
 
       const mediaItem = document.createElement("div");
       mediaItem.classList.add("media-item");
 
-      if (selectedMediaType === "images" && item.url) {
-        console.log("Rendering image:", item.url);
+      if (selectedMediaType === "images") {
+        console.log("Rendering image:", imageUrl);
         mediaItem.innerHTML = `
-          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
+          <img src="${imageUrl}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${imageUrl}');">
           <h3 class="media-title">${item.title || 'Untitled'}</h3>
           <p>Creator: ${item.creator || 'Unknown'}</p>
           <p>License: ${item.license || 'Unknown'}</p>
@@ -288,9 +318,11 @@ export async function searchMedia() {
         resultsContainer.appendChild(mediaItem);
         console.log(`Appended mediaItem ${index} to resultsContainer`);
         // Force DOM refresh
-        resultsContainer.style.display = 'none';
-        resultsContainer.offsetHeight; // Trigger reflow
-        resultsContainer.style.display = 'block';
+        requestAnimationFrame(() => {
+          resultsContainer.style.display = 'none';
+          resultsContainer.offsetHeight; // Trigger reflow
+          resultsContainer.style.display = 'block';
+        });
       });
     }
 
@@ -299,7 +331,9 @@ export async function searchMedia() {
     resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
   } finally {
     // Hide loading message
-    loadingIndicator.style.display = "none";
+    requestAnimationFrame(() => {
+      loadingIndicator.style.display = "none";
+    });
   }
 }
 
@@ -425,10 +459,12 @@ async function loadRecentSearches(user) {
         recentSearchesList.appendChild(listItem);
       });
       // Force DOM refresh
-      recentSearchesList.style.display = 'none';
-      recentSearchesList.offsetHeight; // Trigger reflow
-      recentSearchesList.style.display = 'block';
-      console.log("Forced DOM refresh for recentSearches");
+      requestAnimationFrame(() => {
+        recentSearchesList.style.display = 'none';
+        recentSearchesList.offsetHeight; // Trigger reflow
+        recentSearchesList.style.display = 'block';
+        console.log("Forced DOM refresh for recentSearches");
+      });
     });
   } catch (error) {
     console.error("Error loading recent searches from Firestore:", error);
@@ -438,7 +474,7 @@ async function loadRecentSearches(user) {
     } else if (error.code === "permission-denied") {
       errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains and security rules allow access.";
     } else if (error.code === "failed-precondition") {
-      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firefox Console.";
+      errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
     }
     retryDOMUpdate(() => {
       recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
