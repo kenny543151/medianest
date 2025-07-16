@@ -27,14 +27,15 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
-// Function to retry authentication
-async function retryAuth(maxAttempts = 8, delay = 3000) {
+// Function to retry authentication with exponential backoff
+async function retryAuth(maxAttempts = 8, baseDelay = 2000) {
   let attempts = 0;
   while (attempts < maxAttempts) {
     if (auth.currentUser) {
       console.log("Auth retry successful, user:", auth.currentUser.uid);
       return auth.currentUser;
     }
+    const delay = baseDelay * Math.pow(2, attempts); // Exponential backoff
     console.log(`Auth retry attempt ${attempts + 1}/${maxAttempts}, waiting ${delay}ms...`);
     await new Promise(resolve => setTimeout(resolve, delay));
     attempts++;
@@ -91,7 +92,7 @@ function loadCachedSearches() {
     });
   } catch (error) {
     console.error("Error loading cached searches:", error);
-    recentSearchesList.innerHTML = "<p>Unable to load cached searches.</p>";
+    recentSearchesList.innerHTML = "<p>Unable to load cached searches due to browser restrictions.</p>";
   }
 }
 
@@ -129,7 +130,8 @@ onAuthStateChanged(auth, async (user) => {
     console.log("No user logged in, attempting retry...");
     const retriedUser = await retryAuth();
     if (!retriedUser) {
-      console.log("No user after retry, redirecting to login");
+      console.log("No user after retry, loading cached searches");
+      loadCachedSearches();
       window.location.href = "login.html";
     } else {
       setTimeout(() => loadRecentSearches(retriedUser), 2000);
@@ -146,6 +148,7 @@ export async function searchMedia() {
   const selectedMediaType = document.getElementById("mediaType").value;
   const selectedLicense = document.getElementById("licenseType").value;
   const resultsContainer = document.getElementById("resultsContainer");
+  const recentSearchesList = document.getElementById("recentSearches");
   const loadingIndicator = document.getElementById("loadingText");
 
   // Clear previous results
@@ -161,6 +164,13 @@ export async function searchMedia() {
   try {
     // Save search to history before fetching
     await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+    // Immediately reload recent searches
+    const currentUser = auth.currentUser || await retryAuth();
+    if (currentUser) {
+      loadRecentSearches(currentUser);
+    } else {
+      loadCachedSearches();
+    }
 
     // Build API URL
     const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
@@ -234,41 +244,34 @@ export async function searchMedia() {
 // Function to save search history
 async function saveSearchHistory(query, mediaType, license) {
   const currentUser = auth.currentUser || await retryAuth();
+  const searchData = { query, mediaType, license, timestamp: new Date() };
+
+  // Save to localStorage first
+  try {
+    const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+    cachedSearches.unshift(searchData);
+    if (cachedSearches.length > 10) cachedSearches.pop();
+    localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
+    console.log("Saved search to localStorage:", searchData);
+    loadCachedSearches(); // Immediate display
+  } catch (error) {
+    console.error("Error saving to localStorage:", error);
+  }
+
   if (!currentUser) {
-    console.error("No user logged in, cannot save search");
+    console.error("No user logged in, cannot save search to Firestore");
     return;
   }
 
   try {
-    const searchData = { query, mediaType, license, timestamp: new Date() };
     await retryFirestoreQuery(async () => {
       return await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData);
     });
-    console.log("Saved search for user:", currentUser.uid);
-    // Cache search locally
-    try {
-      const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
-      cachedSearches.unshift(searchData);
-      if (cachedSearches.length > 10) cachedSearches.pop(); // Limit to 10 searches
-      localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
-    } catch (error) {
-      console.error("Error caching search:", error);
-    }
+    console.log("Saved search to Firestore for user:", currentUser.uid);
   } catch (error) {
-    console.error("Error saving search:", error);
+    console.error("Error saving search to Firestore:", error);
     if (error.code === "permission-denied") {
       console.error("Check Firebase security rules for users/{userId}/searchHistory or authorized domains");
-    }
-    // Fallback to localStorage
-    try {
-      const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
-      cachedSearches.unshift({ query, mediaType, license, timestamp: new Date() });
-      if (cachedSearches.length > 10) cachedSearches.pop();
-      localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
-      console.log("Saved search to localStorage as fallback");
-      loadCachedSearches();
-    } catch (localError) {
-      console.error("Error saving to localStorage:", localError);
     }
   }
 }
@@ -295,13 +298,14 @@ async function deleteSearchHistory(docId) {
 // Function to load recent searches
 async function loadRecentSearches(user) {
   const currentUser = user || auth.currentUser || await retryAuth();
+  const recentSearchesList = document.getElementById("recentSearches");
+
   if (!currentUser) {
-    console.error("No user logged in for recent searches, redirecting to login");
-    window.location.href = "login.html";
+    console.error("No user logged in for recent searches, loading cached searches");
+    loadCachedSearches();
     return;
   }
 
-  const recentSearchesList = document.getElementById("recentSearches");
   recentSearchesList.innerHTML = "<p>Loading recent searches...</p>";
 
   try {
@@ -314,8 +318,8 @@ async function loadRecentSearches(user) {
 
     // Check if no searches exist
     if (querySnapshot.empty) {
-      console.log("No recent searches found for user:", currentUser.uid);
-      loadCachedSearches(); // Fallback to localStorage
+      console.log("No recent searches found in Firestore for user:", currentUser.uid);
+      loadCachedSearches();
       return;
     }
 
@@ -323,7 +327,7 @@ async function loadRecentSearches(user) {
     const searches = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      console.log("Found search:", data);
+      console.log("Found search in Firestore:", data);
       searches.push({ id: doc.id, ...data });
     });
 
@@ -335,6 +339,7 @@ async function loadRecentSearches(user) {
     }
 
     // Display searches
+    recentSearchesList.innerHTML = "";
     searches.forEach((data) => {
       const listItem = document.createElement("li");
       listItem.innerHTML = `
@@ -352,7 +357,7 @@ async function loadRecentSearches(user) {
       recentSearchesList.appendChild(listItem);
     });
   } catch (error) {
-    console.error("Error loading recent searches:", error);
+    console.error("Error loading recent searches from Firestore:", error);
     let errorMessage = "Error loading recent searches: " + error.message;
     if (error.code === "unavailable" || error.message.includes("storage")) {
       errorMessage = "Unable to load recent searches due to browser privacy settings. Disable tracking prevention in Settings > Privacy (Safari/Edge) or Privacy & Security (Firefox), or try Chrome. Then, refresh the page.";
@@ -362,7 +367,7 @@ async function loadRecentSearches(user) {
       errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
     }
     recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
-    loadCachedSearches(); // Fallback to localStorage
+    loadCachedSearches();
   }
 }
 
