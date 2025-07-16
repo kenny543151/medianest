@@ -1,3 +1,4 @@
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, disableNetwork } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
@@ -27,7 +28,7 @@ disableNetwork(db).then(() => {
 });
 
 // Function to retry authentication
-async function retryAuth(maxAttempts = 5, delay = 2000) {
+async function retryAuth(maxAttempts = 8, delay = 3000) {
   let attempts = 0;
   while (attempts < maxAttempts) {
     if (auth.currentUser) {
@@ -62,11 +63,56 @@ async function retryFirestoreQuery(queryFn, maxAttempts = 3, delay = 2000) {
   throw new Error("Firestore query failed after max attempts");
 }
 
+// Function to load cached searches from localStorage
+function loadCachedSearches() {
+  const recentSearchesList = document.getElementById("recentSearches");
+  try {
+    const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+    if (cachedSearches.length === 0) {
+      recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
+      return;
+    }
+    recentSearchesList.innerHTML = "";
+    cachedSearches.forEach((data, index) => {
+      const listItem = document.createElement("li");
+      listItem.innerHTML = `
+        ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
+        <button onclick="deleteCachedSearch(${index})" aria-label="Delete search">Delete</button>
+      `;
+      listItem.onclick = (e) => {
+        if (e.target.tagName !== "BUTTON") {
+          document.getElementById("searchInput").value = data.query;
+          document.getElementById("mediaType").value = data.mediaType;
+          document.getElementById("licenseType").value = data.license || "";
+          searchMedia();
+        }
+      };
+      recentSearchesList.appendChild(listItem);
+    });
+  } catch (error) {
+    console.error("Error loading cached searches:", error);
+    recentSearchesList.innerHTML = "<p>Unable to load cached searches.</p>";
+  }
+}
+
+// Function to delete cached search
+function deleteCachedSearch(index) {
+  try {
+    const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+    cachedSearches.splice(index, 1);
+    localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
+    loadCachedSearches();
+  } catch (error) {
+    console.error("Error deleting cached search:", error);
+  }
+}
+
 // Function to log out user
 export function logoutUser() {
   signOut(auth)
     .then(() => {
       console.log("User logged out successfully");
+      localStorage.removeItem("recentSearches");
       alert("Logged out!");
       window.location.href = "login.html";
     })
@@ -194,20 +240,35 @@ async function saveSearchHistory(query, mediaType, license) {
   }
 
   try {
+    const searchData = { query, mediaType, license, timestamp: new Date() };
     await retryFirestoreQuery(async () => {
-      return await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), {
-        query,
-        mediaType,
-        license,
-        timestamp: new Date()
-      });
+      return await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData);
     });
     console.log("Saved search for user:", currentUser.uid);
-    loadRecentSearches(currentUser);
+    // Cache search locally
+    try {
+      const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+      cachedSearches.unshift(searchData);
+      if (cachedSearches.length > 10) cachedSearches.pop(); // Limit to 10 searches
+      localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
+    } catch (error) {
+      console.error("Error caching search:", error);
+    }
   } catch (error) {
     console.error("Error saving search:", error);
     if (error.code === "permission-denied") {
       console.error("Check Firebase security rules for users/{userId}/searchHistory or authorized domains");
+    }
+    // Fallback to localStorage
+    try {
+      const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+      cachedSearches.unshift({ query, mediaType, license, timestamp: new Date() });
+      if (cachedSearches.length > 10) cachedSearches.pop();
+      localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
+      console.log("Saved search to localStorage as fallback");
+      loadCachedSearches();
+    } catch (localError) {
+      console.error("Error saving to localStorage:", localError);
     }
   }
 }
@@ -254,18 +315,31 @@ async function loadRecentSearches(user) {
     // Check if no searches exist
     if (querySnapshot.empty) {
       console.log("No recent searches found for user:", currentUser.uid);
-      recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
+      loadCachedSearches(); // Fallback to localStorage
       return;
     }
 
     // Show each search
+    const searches = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       console.log("Found search:", data);
+      searches.push({ id: doc.id, ...data });
+    });
+
+    // Update localStorage cache
+    try {
+      localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
+    } catch (error) {
+      console.error("Error updating localStorage cache:", error);
+    }
+
+    // Display searches
+    searches.forEach((data) => {
       const listItem = document.createElement("li");
       listItem.innerHTML = `
         ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
-        <button onclick="deleteSearchHistory('${doc.id}')" aria-label="Delete search">Delete</button>
+        <button onclick="deleteSearchHistory('${data.id}')" aria-label="Delete search">Delete</button>
       `;
       listItem.onclick = (e) => {
         if (e.target.tagName !== "BUTTON") {
@@ -288,6 +362,7 @@ async function loadRecentSearches(user) {
       errorMessage = "Unable to load recent searches: Ensure Firestore is enabled in Firebase Console.";
     }
     recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
+    loadCachedSearches(); // Fallback to localStorage
   }
 }
 
@@ -295,3 +370,4 @@ async function loadRecentSearches(user) {
 window.searchMedia = searchMedia;
 window.logoutUser = logoutUser;
 window.deleteSearchHistory = deleteSearchHistory;
+window.deleteCachedSearch = deleteCachedSearch;
