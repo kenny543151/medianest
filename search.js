@@ -115,6 +115,7 @@ export function logoutUser() {
     .then(() => {
       console.log("User logged out successfully");
       localStorage.removeItem("recentSearches");
+      localStorage.removeItem("cachedResults");
       alert("Logged out!");
       window.location.href = "login.html";
     })
@@ -139,7 +140,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Function to fetch with timeout
-async function fetchWithTimeout(url, timeout = 5000) {
+async function fetchWithTimeout(url, timeout = 3000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
@@ -149,6 +150,35 @@ async function fetchWithTimeout(url, timeout = 5000) {
   } catch (error) {
     clearTimeout(timeoutId);
     throw error;
+  }
+}
+
+// Function to get cached API results
+function getCachedResults(query, mediaType, license) {
+  try {
+    const cacheKey = `${query}_${mediaType}_${license || 'none'}`;
+    const cachedData = JSON.parse(localStorage.getItem("cachedResults") || "{}");
+    if (cachedData[cacheKey] && cachedData[cacheKey].timestamp > Date.now() - 24 * 60 * 60 * 1000) {
+      console.log("Using cached API results for:", cacheKey);
+      return cachedData[cacheKey].data;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error accessing cached results:", error);
+    return null;
+  }
+}
+
+// Function to save API results to cache
+function saveCachedResults(query, mediaType, license, data) {
+  try {
+    const cacheKey = `${query}_${mediaType}_${license || 'none'}`;
+    const cachedData = JSON.parse(localStorage.getItem("cachedResults") || "{}");
+    cachedData[cacheKey] = { data, timestamp: Date.now() };
+    localStorage.setItem("cachedResults", JSON.stringify(cachedData));
+    console.log("Saved API results to cache:", cacheKey);
+  } catch (error) {
+    console.error("Error saving cached results:", error);
   }
 }
 
@@ -169,8 +199,13 @@ export async function searchMedia() {
   loadingIndicator.style.display = "block";
 
   try {
-    // Save search to history before fetching
-    await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+    // Check for cached API results
+    const cachedResults = getCachedResults(searchInput, selectedMediaType, selectedLicense);
+    if (cachedResults) {
+      renderResults(cachedResults, resultsContainer, selectedMediaType, selectedLicense);
+      await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+      return;
+    }
 
     // Build API URL
     const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
@@ -193,46 +228,14 @@ export async function searchMedia() {
     const data = await response.json();
     console.log("Openverse API response:", JSON.stringify(data, null, 2));
 
-    // Clear results container
-    resultsContainer.innerHTML = "";
+    // Cache API results
+    saveCachedResults(searchInput, selectedMediaType, selectedLicense, data);
 
-    // Check if no results found
-    if (!data.results || data.results.length === 0) {
-      resultsContainer.innerHTML = `<p style="color:red;">No results found for ${selectedLicense ? `"${selectedLicense}" license` : 'this license'}. Try another license or search term.</p>`;
-      return;
-    }
+    // Render results
+    renderResults(data, resultsContainer, selectedMediaType, selectedLicense);
 
-    // Show search results
-    data.results.forEach((item) => {
-      const mediaItem = document.createElement("div");
-      mediaItem.classList.add("media-item");
-
-      if (selectedMediaType === "images" && item.url) {
-        console.log("Rendering image:", item.url);
-        mediaItem.innerHTML = `
-          <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
-          <h3 class="media-title">${item.title || 'Untitled'}</h3>
-          <p>Creator: ${item.creator || 'Unknown'}</p>
-          <p>License: ${item.license || 'Unknown'}</p>
-        `;
-      } else if (selectedMediaType === "audio" && item.url) {
-        console.log("Rendering audio:", item.url);
-        mediaItem.innerHTML = `
-          <h3 class="media-title">${item.title || 'Untitled'}</h3>
-          <p>Creator: ${item.creator || 'Unknown'}</p>
-          <p>License: ${item.license || 'Unknown'}</p>
-          <audio controls>
-            <source src="${item.url}" type="audio/mpeg">
-            Your browser does not support the audio element.
-          </audio>
-        `;
-      } else {
-        console.error("Media not available for item:", item);
-        mediaItem.innerHTML = `<p>Media not available</p>`;
-      }
-
-      resultsContainer.appendChild(mediaItem);
-    });
+    // Save search history after rendering
+    await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
 
   } catch (error) {
     console.error("Error fetching media:", error);
@@ -243,12 +246,52 @@ export async function searchMedia() {
   }
 }
 
+// Function to render results
+function renderResults(data, resultsContainer, mediaType, license) {
+  resultsContainer.innerHTML = "";
+  if (!data.results || data.results.length === 0) {
+    resultsContainer.innerHTML = `<p style="color:red;">No results found for ${license ? `"${license}" license` : 'this license'}. Try another license or search term.</p>`;
+    return;
+  }
+
+  data.results.forEach((item) => {
+    const mediaItem = document.createElement("div");
+    mediaItem.classList.add("media-item");
+
+    if (mediaType === "images" && item.url) {
+      console.log("Rendering image:", item.url);
+      mediaItem.innerHTML = `
+        <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
+        <h3 class="media-title">${item.title || 'Untitled'}</h3>
+        <p>Creator: ${item.creator || 'Unknown'}</p>
+        <p>License: ${item.license || 'Unknown'}</p>
+      `;
+    } else if (mediaType === "audio" && item.url) {
+      console.log("Rendering audio:", item.url);
+      mediaItem.innerHTML = `
+        <h3 class="media-title">${item.title || 'Untitled'}</h3>
+        <p>Creator: ${item.creator || 'Unknown'}</p>
+        <p>License: ${item.license || 'Unknown'}</p>
+        <audio controls>
+          <source src="${item.url}" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+      `;
+    } else {
+      console.error("Media not available for item:", item);
+      mediaItem.innerHTML = `<p>Media not available</p>`;
+    }
+
+    resultsContainer.appendChild(mediaItem);
+  });
+}
+
 // Function to save search history
 async function saveSearchHistory(query, mediaType, license) {
   const currentUser = auth.currentUser;
   const searchData = { query, mediaType, license, timestamp: new Date() };
 
-  // Save to localStorage first
+  // Save to localStorage
   try {
     const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
     cachedSearches.unshift(searchData);
@@ -265,16 +308,18 @@ async function saveSearchHistory(query, mediaType, license) {
     return;
   }
 
-  try {
-    await addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData);
-    console.log("Saved search to Firestore for user:", currentUser.uid);
-    loadRecentSearches(currentUser);
-  } catch (error) {
-    console.error("Error saving search to Firestore:", error);
-    if (error.code === "permission-denied") {
-      console.error("Check Firebase security rules for users/{userId}/searchHistory or authorized domains");
-    }
-  }
+  // Save to Firestore in background
+  addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData)
+    .then(() => {
+      console.log("Saved search to Firestore for user:", currentUser.uid);
+      loadRecentSearches(currentUser);
+    })
+    .catch((error) => {
+      console.error("Error saving search to Firestore:", error);
+      if (error.code === "permission-denied") {
+        console.error("Check Firebase security rules for users/{userId}/searchHistory or authorized domains");
+      }
+    });
 }
 
 // Function to delete search history
@@ -306,39 +351,37 @@ async function loadRecentSearches(user) {
     return;
   }
 
-  try {
-    console.log("Fetching recent searches for user:", currentUser.uid);
-    const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "searchHistory"));
+  // Run Firestore query in background
+  getDocs(collection(db, "users", currentUser.uid, "searchHistory"))
+    .then((querySnapshot) => {
+      const searches = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log("Found search:", data);
+        searches.push({ id: doc.id, ...data });
+      });
 
-    // Update localStorage with Firestore data
-    const searches = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      console.log("Found search:", data);
-      searches.push({ id: doc.id, ...data });
-    });
-
-    if (searches.length > 0) {
-      try {
-        localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
-        console.log("Updated localStorage with Firestore searches");
-        loadCachedSearches();
-      } catch (error) {
-        console.error("Error updating localStorage:", error);
+      if (searches.length > 0) {
+        try {
+          localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
+          console.log("Updated localStorage with Firestore searches");
+          loadCachedSearches();
+        } catch (error) {
+          console.error("Error updating localStorage:", error);
+        }
       }
-    }
-
-  } catch (error) {
-    console.error("Error loading recent searches:", error);
-    let errorMessage = "Error loading recent searches: " + error.message;
-    if (error.code === "unavailable" || error.message.includes("storage")) {
-      errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using Chrome.";
-    } else if (error.code === "permission-denied") {
-      errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains.";
-    }
-    recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
-    loadCachedSearches();
-  }
+    })
+    .catch((error) => {
+      console.error("Error loading recent searches:", error);
+      let errorMessage = "Error loading recent searches: " + error.message;
+      if (error.code === "unavailable" || error.message.includes("storage")) {
+        errorMessage = "Unable to load recent searches due to browser privacy settings. Try disabling tracking prevention or using Chrome.";
+      } else if (error.code === "permission-denied") {
+        errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains.";
+      }
+      recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
+      loadCachedSearches();
+    });
 }
 
 // Make functions available globally
