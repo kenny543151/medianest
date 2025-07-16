@@ -140,7 +140,7 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Function to fetch with timeout
-async function fetchWithTimeout(url, timeout = 3000) {
+async function fetchWithTimeout(url, timeout = 10000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
@@ -158,7 +158,7 @@ function getCachedResults(query, mediaType, license) {
   try {
     const cacheKey = `${query}_${mediaType}_${license || 'none'}`;
     const cachedData = JSON.parse(localStorage.getItem("cachedResults") || "{}");
-    if (cachedData[cacheKey] && cachedData[cacheKey].timestamp > Date.now() - 24 * 60 * 60 * 1000) {
+    if (cachedData[cacheKey] && cachedData[cacheKey].timestamp > Date.now() - 7 * 24 * 60 * 60 * 1000) {
       console.log("Using cached API results for:", cacheKey);
       return cachedData[cacheKey].data;
     }
@@ -239,7 +239,41 @@ export async function searchMedia() {
 
   } catch (error) {
     console.error("Error fetching media:", error);
-    resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+    if (error.name === "AbortError") {
+      console.log("API request timed out, attempting fallback...");
+      const cachedResults = getCachedResults(searchInput, selectedMediaType, selectedLicense);
+      if (cachedResults) {
+        renderResults(cachedResults, resultsContainer, selectedMediaType, selectedLicense);
+        await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+        return;
+      }
+      // Fallback to default media
+      resultsContainer.innerHTML = "";
+      const mediaItem = document.createElement("div");
+      mediaItem.classList.add("media-item");
+      if (selectedMediaType === "images") {
+        mediaItem.innerHTML = `
+          <img src="https://placehold.co/150x150?text=Default+Image" alt="Default Image" style="width: 100%; border-radius: 8px;">
+          <h3 class="media-title">Default Image</h3>
+          <p>Creator: Unknown</p>
+          <p>License: Unknown</p>
+        `;
+      } else {
+        mediaItem.innerHTML = `
+          <h3 class="media-title">Default Audio</h3>
+          <p>Creator: Unknown</p>
+          <p>License: Unknown</p>
+          <audio controls>
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+          </audio>
+        `;
+      }
+      resultsContainer.appendChild(mediaItem);
+      await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+    } else {
+      resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+    }
   } finally {
     // Hide loading message
     loadingIndicator.style.display = "none";
