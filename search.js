@@ -1,3 +1,6 @@
+// MediaNest Search Script
+// Written by OBIIO
+// This code handles searching media and showing search history
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
@@ -27,7 +30,7 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
-// Function to validate and log DOM elements
+// Function to validate DOM elements
 function validateDOMElements() {
   const recentSearchesList = document.getElementById("recentSearches");
   const resultsContainer = document.getElementById("resultsContainer");
@@ -65,12 +68,12 @@ function loadCachedSearches() {
 
   try {
     const cachedSearches = JSON.parse(localStorage.getItem("recentSearches") || "[]");
+    recentSearchesList.innerHTML = "";
     if (cachedSearches.length === 0) {
       recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
       console.log("No cached searches found");
       return;
     }
-    recentSearchesList.innerHTML = "";
     cachedSearches.forEach((data, index) => {
       console.log("Rendering cached search:", data);
       const listItem = document.createElement("li");
@@ -125,15 +128,29 @@ export function logoutUser() {
 onAuthStateChanged(auth, (user) => {
   console.log("Auth state changed, user:", user ? user.uid : null);
   validateDOMElements();
+  loadCachedSearches(); // Load localStorage immediately
   if (!user) {
-    console.log("No user logged in, loading cached searches");
-    loadCachedSearches();
+    console.log("No user logged in, using cached searches");
     window.location.href = "login.html";
   } else {
     console.log("User authenticated:", user.uid);
-    setTimeout(() => loadRecentSearches(user), 1000);
+    loadRecentSearches(user); // Load Firestore in background
   }
 });
+
+// Function to fetch with timeout
+async function fetchWithTimeout(url, timeout = 5000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
 
 // Function to search for media
 export async function searchMedia() {
@@ -158,7 +175,7 @@ export async function searchMedia() {
     // Build API URL
     const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
     console.log("Fetching from API:", apiUrl);
-    const response = await fetch(apiUrl);
+    const response = await fetchWithTimeout(apiUrl);
     let errorMessage = `Failed to fetch media. Status: ${response.status}`;
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -216,11 +233,6 @@ export async function searchMedia() {
 
       resultsContainer.appendChild(mediaItem);
     });
-
-    // Refresh recent searches
-    if (recentSearchesList) {
-      loadCachedSearches();
-    }
 
   } catch (error) {
     console.error("Error fetching media:", error);
@@ -289,46 +301,33 @@ async function loadRecentSearches(user) {
 
   const currentUser = user || auth.currentUser;
   if (!currentUser) {
-    console.error("No user logged in for recent searches, loading cached searches");
+    console.error("No user logged in for recent searches, using cached searches");
     loadCachedSearches();
     return;
   }
-
-  recentSearchesList.innerHTML = "<p>Loading recent searches...</p>";
 
   try {
     console.log("Fetching recent searches for user:", currentUser.uid);
     const querySnapshot = await getDocs(collection(db, "users", currentUser.uid, "searchHistory"));
 
-    // Clear loading message
-    recentSearchesList.innerHTML = "";
-
-    // Check if no searches exist
-    if (querySnapshot.empty) {
-      console.log("No recent searches found in Firestore for user:", currentUser.uid);
-      loadCachedSearches();
-      return;
-    }
-
-    // Show each search
+    // Update localStorage with Firestore data
+    const searches = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       console.log("Found search:", data);
-      const listItem = document.createElement("li");
-      listItem.innerHTML = `
-        ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
-        <button onclick="deleteSearchHistory('${doc.id}')" aria-label="Delete search">Delete</button>
-      `;
-      listItem.onclick = (e) => {
-        if (e.target.tagName !== "BUTTON") {
-          document.getElementById("searchInput").value = data.query;
-          document.getElementById("mediaType").value = data.mediaType;
-          document.getElementById("licenseType").value = data.license || "";
-          searchMedia();
-        }
-      };
-      recentSearchesList.appendChild(listItem);
+      searches.push({ id: doc.id, ...data });
     });
+
+    if (searches.length > 0) {
+      try {
+        localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
+        console.log("Updated localStorage with Firestore searches");
+        loadCachedSearches();
+      } catch (error) {
+        console.error("Error updating localStorage:", error);
+      }
+    }
+
   } catch (error) {
     console.error("Error loading recent searches:", error);
     let errorMessage = "Error loading recent searches: " + error.message;
