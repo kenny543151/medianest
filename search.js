@@ -113,6 +113,9 @@ export async function searchMedia() {
   loadingIndicator.style.display = "block";
 
   try {
+    // Save search to history before fetching
+    await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
+
     // Build API URL
     const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
     console.log("Fetching from API:", apiUrl);
@@ -172,9 +175,6 @@ export async function searchMedia() {
 
       resultsContainer.appendChild(mediaItem);
     });
-
-    // Save search to history
-    await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
 
   } catch (error) {
     console.error("Error fetching media:", error);
