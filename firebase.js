@@ -15,7 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// 🔥 Fix: Use initializeFirestore properly
 const db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
     useFetchStreams: false
