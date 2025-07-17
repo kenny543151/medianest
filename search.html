@@ -1,45 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MediaNest Search</title>
-  <link rel="stylesheet" href="./styles.css" type="text/css">
-  <script type="module" src="./search.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaNest - Search Media</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body>
-  <button class="logout-btn" onclick="logoutUser()">Logout</button>
-
-  <div class="container">
-    <h1><i class="fas fa-search"></i> MediaNest Search</h1>
-
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search for media..." aria-label="Search for media" />
-      <button onclick="searchMedia()" aria-label="Search media">🔍 Search</button>
+    <div class="container">
+        <header>
+            <h1>MediaNest</h1>
+            <button id="logoutButton" onclick="logoutUser()">Logout</button>
+        </header>
+        <main>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Search for media...">
+                <select id="mediaType">
+                    <option value="images">Images</option>
+                    <option value="audio">Audio</option>
+                    <option value="videos">Videos</option>
+                </select>
+                <select id="licenseType">
+                    <option value="">Any License</option>
+                    <option value="CC0">CC0</option>
+                    <option value="CC-BY">CC-BY</option>
+                    <option value="CC-BY-SA">CC-BY-SA</option>
+                    <option value="CC-BY-NC">CC-BY-NC</option>
+                    <option value="CC-BY-NC-SA">CC-BY-NC-SA</option>
+                    <option value="CC-BY-ND">CC-BY-ND</option>
+                    <option value="CC-BY-NC-ND">CC-BY-NC-ND</option>
+                </select>
+                <button onclick="searchMedia()">Search</button>
+            </div>
+            <div id="loadingText" style="display: none;">Loading...</div>
+            <div id="resultsContainer"></div>
+            <div class="recent-searches">
+                <h2>Recent Searches</h2>
+                <ul id="recentSearches"></ul>
+            </div>
+        </main>
     </div>
-
-    <div class="filters">
-      <select id="mediaType" aria-label="Select media type">
-        <option value="images">Images</option>
-        <option value="audio">Audio</option>
-      </select>
-      <select id="licenseType" aria-label="Select license type">
-        <option value="">All Licenses</option>
-        <option value="CC0">CC0</option>
-        <option value="BY">CC BY</option>
-        <option value="BY-SA">CC BY-SA</option>
-      </select>
-    </div>
-
-    <div class="recent-searches">
-      <h2>Recent Searches</h2>
-      <ul id="recentSearches"></ul>
-    </div>
-
-    <p class="loading" id="loadingText">Loading results...</p>
-
-    <div class="results" id="resultsContainer"></div>
-  </div>
-  <footer>© 2025 MediaNest – A hub for discovering open-license media</footer>
+    <script type="module" src="search.js"></script>
 </body>
 </html>
