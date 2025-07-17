@@ -30,6 +30,9 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
+// Pexels API key (replace with your own from https://www.pexels.com/api/)
+const PEXELS_API_KEY = "F6EjgGWyOfrdxCaWKJ7jUOhL8Eg3BxVc4UHZdkoSGXUjUgGx3ph3Ogyf"; // Get from https://www.pexels.com/api/
+
 // Function to validate DOM elements
 function validateDOMElements() {
   const recentSearchesList = document.getElementById("recentSearches");
@@ -144,7 +147,7 @@ async function fetchWithTimeout(url, timeout = 10000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, headers: { Authorization: PEXELS_API_KEY } });
     clearTimeout(timeoutId);
     return response;
   } catch (error) {
@@ -208,25 +211,32 @@ export async function searchMedia() {
     }
 
     // Build API URL
-    const apiUrl = `https://medianest-backend.onrender.com/api/search?q=${encodeURIComponent(searchInput)}&mediaType=${selectedMediaType}&license=${selectedLicense}`;
-    console.log("Fetching from API:", apiUrl);
-    const response = await fetchWithTimeout(apiUrl);
-    let errorMessage = `Failed to fetch media. Status: ${response.status}`;
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (response.status === 400) {
-        errorMessage = errorData.error || 'Invalid search parameters, maybe wrong license type';
-      } else if (response.status === 401) {
-        errorMessage = 'Authentication error: Invalid API credentials';
-      } else if (response.status === 429) {
-        errorMessage = 'Too many requests. Try again later';
-      } else {
-        errorMessage = errorData.error || errorMessage;
-      }
-      throw new Error(errorMessage);
+    let apiUrl;
+    if (selectedMediaType === "images") {
+      apiUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(searchInput)}&per_page=10`;
+    } else if (selectedMediaType === "videos") {
+      apiUrl = `https://api.pexels.com/videos/search?query=${encodeURIComponent(searchInput)}&per_page=10`;
+    } else {
+      apiUrl = null; // Audio not supported by Pexels
     }
-    const data = await response.json();
-    console.log("Openverse API response:", JSON.stringify(data, null, 2));
+
+    let data;
+    if (apiUrl) {
+      console.log("Fetching from Pexels API:", apiUrl);
+      const response = await fetchWithTimeout(apiUrl);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        let errorMessage = `Failed to fetch media. Status: ${response.status}`;
+        if (response.status === 400) errorMessage = errorData.error || "Invalid search parameters";
+        else if (response.status === 401) errorMessage = "Invalid Pexels API key";
+        else if (response.status === 429) errorMessage = "Pexels API rate limit exceeded";
+        throw new Error(errorMessage);
+      }
+      data = await response.json();
+      console.log("Pexels API response:", JSON.stringify(data, null, 2));
+    } else {
+      data = { results: [] }; // Fallback for audio
+    }
 
     // Cache API results
     saveCachedResults(searchInput, selectedMediaType, selectedLicense, data);
@@ -293,42 +303,51 @@ export async function searchMedia() {
 // Function to render results
 function renderResults(data, resultsContainer, mediaType, license) {
   resultsContainer.innerHTML = "";
-  if (!data.results || data.results.length === 0) {
-    resultsContainer.innerHTML = `<p style="color:red;">No results found for ${license ? `"${license}" license` : 'this license'}. Try another license or search term.</p>`;
+  let results = [];
+  if (mediaType === "images") {
+    results = data.photos || [];
+  } else if (mediaType === "videos") {
+    results = data.videos || [];
+  } else {
+    results = []; // Audio not supported
+  }
+
+  if (results.length === 0) {
+    resultsContainer.innerHTML = `<p style="color:red;">No results found for ${license ? `"${license}" license` : 'this license'}. Try another search term.</p>`;
     return;
   }
 
-  data.results.forEach((item) => {
+  results.forEach((item) => {
     const mediaItem = document.createElement("div");
     mediaItem.classList.add("media-item");
 
-    if (mediaType === "images" && item.url) {
-      console.log("Rendering image:", item.url);
+    if (mediaType === "images" && item.src?.medium) {
+      console.log("Rendering image:", item.src.medium);
       mediaItem.innerHTML = `
-        <img src="${item.url}" alt="${item.title || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.url}');">
-        <h3 class="media-title">${item.title || 'Untitled'}</h3>
-        <p>Creator: ${item.creator || 'Unknown'}</p>
-        <p>License: ${item.license || 'Unknown'}</p>
+        <img src="${item.src.medium}" alt="${item.alt || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.src.medium}');">
+        <h3 class="media-title">${item.alt || 'Untitled'}</h3>
+        <p>Creator: ${item.photographer || 'Unknown'}</p>
+        <p>License: Pexels License</p>
       `;
-    } else if (mediaType === "audio" && item.url) {
-      console.log("Rendering audio:", item.url);
+    } else if (mediaType === "audio") {
+      console.log("Rendering default audio (Pexels does not support audio)");
       mediaItem.innerHTML = `
-        <h3 class="media-title">${item.title || 'Untitled'}</h3>
-        <p>Creator: ${item.creator || 'Unknown'}</p>
-        <p>License: ${item.license || 'Unknown'}</p>
+        <h3 class="media-title">Default Audio</h3>
+        <p>Creator: Unknown</p>
+        <p>License: Unknown</p>
         <audio controls>
-          <source src="${item.url}" type="audio/mpeg">
+          <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
           Your browser does not support the audio element.
         </audio>
       `;
-    } else if (mediaType === "videos" && item.url) {
-      console.log("Rendering video:", item.url);
+    } else if (mediaType === "videos" && item.video_files?.[0]?.link) {
+      console.log("Rendering video:", item.video_files[0].link);
       mediaItem.innerHTML = `
-        <h3 class="media-title">${item.title || 'Untitled'}</h3>
-        <p>Creator: ${item.creator || 'Unknown'}</p>
-        <p>License: ${item.license || 'Unknown'}</p>
-        <video controls width="100%" style="border-radius: 8px;" poster="https://placehold.co/150x150?text=Video+Thumbnail" onerror="this.poster='https://placehold.co/150x150?text=Video+Not+Found'; console.error('Failed to load video: ${item.url}');">
-          <source src="${item.url}" type="video/mp4">
+        <h3 class="media-title">${item.alt || 'Untitled'}</h3>
+        <p>Creator: ${item.user?.name || 'Unknown'}</p>
+        <p>License: Pexels License</p>
+        <video controls width="100%" style="border-radius: 8px;" poster="${item.video_pictures?.[0]?.picture || 'https://placehold.co/150x150?text=Video+Thumbnail'}" onerror="this.poster='https://placehold.co/150x150?text=Video+Not+Found'; console.error('Failed to load video: ${item.video_files[0].link}');">
+          <source src="${item.video_files[0].link}" type="video/mp4">
           Your browser does not support the video element.
         </video>
       `;
