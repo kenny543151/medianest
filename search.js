@@ -103,7 +103,6 @@ function loadCachedSearches() {
     cachedSearches.forEach((data, index) => {
       console.log("Rendering cached search:", data);
       const listItem = document.createElement("li");
-      listItem.classList.add("card");
       listItem.innerHTML = `
         ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
         <button onclick="deleteCachedSearch(${index})" aria-label="Delete search">Delete</button>
@@ -224,7 +223,8 @@ export async function searchMedia() {
   }
 
   // Show loading message
-  loadingIndicator.classList.add("loader", "active");
+  loadingIndicator.classList.add("loading");
+  loadingIndicator.style.display = "block";
 
   try {
     // Check for cached API results
@@ -285,7 +285,7 @@ export async function searchMedia() {
       // Fallback to default media
       resultsContainer.innerHTML = "";
       const mediaItem = document.createElement("div");
-      mediaItem.classList.add("card");
+      mediaItem.classList.add("media-item");
       if (selectedMediaType === "images") {
         mediaItem.innerHTML = `
           <img src="https://placehold.co/300x200?text=Default+Image" alt="Default Image" class="media-content">
@@ -321,7 +321,7 @@ export async function searchMedia() {
     }
   } finally {
     // Hide loading message
-    loadingIndicator.classList.remove("active");
+    loadingIndicator.style.display = "none";
   }
 }
 
@@ -344,7 +344,7 @@ function renderResults(data, resultsContainer, mediaType, license) {
 
   results.forEach((item) => {
     const mediaItem = document.createElement("div");
-    mediaItem.classList.add("card");
+    mediaItem.classList.add("media-item");
 
     if (mediaType === "images" && item.src?.medium) {
       console.log("Rendering image:", item.src.medium);
