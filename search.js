@@ -31,13 +31,14 @@ disableNetwork(db).then(() => {
 });
 
 // Pexels API key (replace with your own from https://www.pexels.com/api/)
-const PEXELS_API_KEY = "F6EjgGWyOfrdxCaWKJ7jUOhL8Eg3BxVc4UHZdkoSGXUjUgGx3ph3Ogyf"; // Get from https://www.pexels.com/api/
+const PEXELS_API_KEY = "YOUR_PEXELS_API_KEY_HERE"; // Get from https://www.pexels.com/api/
 
 // Function to validate DOM elements
 function validateDOMElements() {
   const recentSearchesList = document.getElementById("recentSearches");
   const resultsContainer = document.getElementById("resultsContainer");
   const loadingIndicator = document.getElementById("loadingText");
+  const licenseType = document.getElementById("licenseType");
   if (recentSearchesList) {
     const styles = window.getComputedStyle(recentSearchesList);
     console.log("recentSearches styles:", {
@@ -61,8 +62,30 @@ function validateDOMElements() {
     console.error("Error: <div id='resultsContainer'> not found in DOM");
   }
   if (!loadingIndicator) console.error("Error: <div id='loadingText'> not found in DOM");
-  return { recentSearchesList, resultsContainer, loadingIndicator };
+  if (!licenseType) console.error("Error: <select id='licenseType'> not found in DOM");
+  return { recentSearchesList, resultsContainer, loadingIndicator, licenseType };
 }
+
+// Function to toggle license selector visibility
+function toggleLicenseSelector() {
+  const mediaType = document.getElementById("mediaType").value;
+  const licenseType = document.getElementById("licenseType");
+  if (mediaType === "videos") {
+    licenseType.style.display = "none";
+    licenseType.value = ""; // Clear license for videos
+  } else {
+    licenseType.style.display = "block";
+  }
+}
+
+// Initialize license selector toggle
+document.addEventListener("DOMContentLoaded", () => {
+  const mediaTypeSelect = document.getElementById("mediaType");
+  if (mediaTypeSelect) {
+    mediaTypeSelect.addEventListener("change", toggleLicenseSelector);
+    toggleLicenseSelector(); // Initial check
+  }
+});
 
 // Function to load cached searches from localStorage
 function loadCachedSearches() {
@@ -80,6 +103,7 @@ function loadCachedSearches() {
     cachedSearches.forEach((data, index) => {
       console.log("Rendering cached search:", data);
       const listItem = document.createElement("li");
+      listItem.classList.add("card");
       listItem.innerHTML = `
         ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
         <button onclick="deleteCachedSearch(${index})" aria-label="Delete search">Delete</button>
@@ -89,6 +113,7 @@ function loadCachedSearches() {
           document.getElementById("searchInput").value = data.query;
           document.getElementById("mediaType").value = data.mediaType;
           document.getElementById("licenseType").value = data.license || "";
+          toggleLicenseSelector();
           searchMedia();
         }
       };
@@ -96,7 +121,7 @@ function loadCachedSearches() {
     });
   } catch (error) {
     console.error("Error loading cached searches:", error);
-    recentSearchesList.innerHTML = "<p>Unable to load cached searches due to browser restrictions.</p>";
+    recentSearchesList.innerHTML = "<p class='error'>Unable to load cached searches due to browser restrictions.</p>";
   }
 }
 
@@ -187,10 +212,10 @@ function saveCachedResults(query, mediaType, license, data) {
 
 // Function to search for media
 export async function searchMedia() {
-  const { recentSearchesList, resultsContainer, loadingIndicator } = validateDOMElements();
+  const { recentSearchesList, resultsContainer, loadingIndicator, licenseType } = validateDOMElements();
   const searchInput = document.getElementById("searchInput").value.trim();
   const selectedMediaType = document.getElementById("mediaType").value;
-  const selectedLicense = document.getElementById("licenseType").value;
+  const selectedLicense = selectedMediaType === "videos" ? "" : licenseType.value; // Ignore license for videos
 
   if (!resultsContainer || !loadingIndicator) return;
   if (!searchInput) {
@@ -199,7 +224,7 @@ export async function searchMedia() {
   }
 
   // Show loading message
-  loadingIndicator.style.display = "block";
+  loadingIndicator.classList.add("loader", "active");
 
   try {
     // Check for cached API results
@@ -260,10 +285,10 @@ export async function searchMedia() {
       // Fallback to default media
       resultsContainer.innerHTML = "";
       const mediaItem = document.createElement("div");
-      mediaItem.classList.add("media-item");
+      mediaItem.classList.add("card");
       if (selectedMediaType === "images") {
         mediaItem.innerHTML = `
-          <img src="https://placehold.co/150x150?text=Default+Image" alt="Default Image" style="width: 100%; border-radius: 8px;">
+          <img src="https://placehold.co/300x200?text=Default+Image" alt="Default Image" class="media-content">
           <h3 class="media-title">Default Image</h3>
           <p>Creator: Unknown</p>
           <p>License: Unknown</p>
@@ -273,7 +298,7 @@ export async function searchMedia() {
           <h3 class="media-title">Default Audio</h3>
           <p>Creator: Unknown</p>
           <p>License: Unknown</p>
-          <audio controls>
+          <audio controls class="media-content">
             <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
             Your browser does not support the audio element.
           </audio>
@@ -283,7 +308,7 @@ export async function searchMedia() {
           <h3 class="media-title">Default Video</h3>
           <p>Creator: Unknown</p>
           <p>License: Unknown</p>
-          <video controls width="100%" style="border-radius: 8px;" poster="https://placehold.co/150x150?text=Default+Video">
+          <video controls class="media-content" poster="https://placehold.co/300x200?text=Default+Video">
             <source src="https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4" type="video/mp4">
             Your browser does not support the video element.
           </video>
@@ -292,11 +317,11 @@ export async function searchMedia() {
       resultsContainer.appendChild(mediaItem);
       await saveSearchHistory(searchInput, selectedMediaType, selectedLicense);
     } else {
-      resultsContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+      resultsContainer.innerHTML = `<p class="error">Error: ${error.message}</p>`;
     }
   } finally {
     // Hide loading message
-    loadingIndicator.style.display = "none";
+    loadingIndicator.classList.remove("active");
   }
 }
 
@@ -313,29 +338,29 @@ function renderResults(data, resultsContainer, mediaType, license) {
   }
 
   if (results.length === 0) {
-    resultsContainer.innerHTML = `<p style="color:red;">No results found for ${license ? `"${license}" license` : 'this license'}. Try another search term.</p>`;
+    resultsContainer.innerHTML = `<p class="error">No results found for ${license && mediaType !== "videos" ? `"${license}" license` : 'this search'}. Try another search term.</p>`;
     return;
   }
 
   results.forEach((item) => {
     const mediaItem = document.createElement("div");
-    mediaItem.classList.add("media-item");
+    mediaItem.classList.add("card");
 
     if (mediaType === "images" && item.src?.medium) {
       console.log("Rendering image:", item.src.medium);
       mediaItem.innerHTML = `
-        <img src="${item.src.medium}" alt="${item.alt || 'Image'}" style="width: 100%; border-radius: 8px;" onerror="this.src='https://placehold.co/150x150?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.src.medium}');">
+        <img src="${item.src.medium}" alt="${item.alt || 'Image'}" class="media-content" onerror="this.src='https://placehold.co/300x200?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.src.medium}');">
         <h3 class="media-title">${item.alt || 'Untitled'}</h3>
         <p>Creator: ${item.photographer || 'Unknown'}</p>
-        <p>License: Pexels License</p>
+        <p>License: ${license || 'Pexels License'}</p>
       `;
     } else if (mediaType === "audio") {
       console.log("Rendering default audio (Pexels does not support audio)");
       mediaItem.innerHTML = `
         <h3 class="media-title">Default Audio</h3>
         <p>Creator: Unknown</p>
-        <p>License: Unknown</p>
-        <audio controls>
+        <p>License: ${license || 'Unknown'}</p>
+        <audio controls class="media-content">
           <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
           Your browser does not support the audio element.
         </audio>
@@ -346,14 +371,14 @@ function renderResults(data, resultsContainer, mediaType, license) {
         <h3 class="media-title">${item.alt || 'Untitled'}</h3>
         <p>Creator: ${item.user?.name || 'Unknown'}</p>
         <p>License: Pexels License</p>
-        <video controls width="100%" style="border-radius: 8px;" poster="${item.video_pictures?.[0]?.picture || 'https://placehold.co/150x150?text=Video+Thumbnail'}" onerror="this.poster='https://placehold.co/150x150?text=Video+Not+Found'; console.error('Failed to load video: ${item.video_files[0].link}');">
+        <video controls class="media-content" poster="${item.video_pictures?.[0]?.picture || 'https://placehold.co/300x200?text=Video+Thumbnail'}" onerror="this.poster='https://placehold.co/300x200?text=Video+Not+Found'; console.error('Failed to load video: ${item.video_files[0].link}');">
           <source src="${item.video_files[0].link}" type="video/mp4">
           Your browser does not support the video element.
         </video>
       `;
     } else {
       console.error("Media not available for item:", item);
-      mediaItem.innerHTML = `<p>Media not available</p>`;
+      mediaItem.innerHTML = `<p class="error">Media not available</p>`;
     }
 
     resultsContainer.appendChild(mediaItem);
@@ -453,7 +478,7 @@ async function loadRecentSearches(user) {
       } else if (error.code === "permission-denied") {
         errorMessage = "Unable to load recent searches: Ensure 'kenny543151.github.io' is added to Firebase Authorized Domains.";
       }
-      recentSearchesList.innerHTML = `<p style="color:red;">${errorMessage}</p>`;
+      recentSearchesList.innerHTML = `<p class="error">${errorMessage}</p>`;
       loadCachedSearches();
     });
 }
