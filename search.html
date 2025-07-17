@@ -1,49 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MediaNest - Search Media</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MediaNest Search</title>
+  <link rel="stylesheet" href="./styles.css" type="text/css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script type="module" src="./search.js"></script>
+  <noscript>
+    <style>
+      body::before {
+        content: "JavaScript is disabled or failed to load. Please enable JavaScript and ensure 'search.js' and 'styles.css' are in the correct directory.";
+        color: red;
+        font-size: 16px;
+        display: block;
+        text-align: center;
+        margin: 20px;
+      }
+    </style>
+  </noscript>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>MediaNest</h1>
-            <button id="logoutButton" onclick="logoutUser()">Logout</button>
-        </header>
-        <main>
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Search for media (e.g., nature, music, sunset)...">
-                <select id="mediaType">
-                    <option value="images">Images</option>
-                    <option value="audio">Audio</option>
-                    <option value="videos">Videos</option>
-                </select>
-                 <select id="licenseType">
-                    <option value="">Any License</option>
-                    <option value="CC0">CC0</option>
-                    <option value="CC-BY">CC-BY</option>
-                    <option value="CC-BY-SA">CC-BY-SA</option>
-                    <option value="CC-BY-NC">CC-BY-NC</option>
-                    <option value="CC-BY-NC-SA">CC-BY-NC-SA</option>
-                    <option value="CC-BY-ND">CC-BY-ND</option>
-                    <option value="CC-BY-NC-ND">CC-BY-NC-ND</option>
-                </select>
-                <button onclick="searchMedia()">Search</button>
-            </div>
-            <div id="loadingText" style="display: none;">Loading...</div>
-            <section class="results-section">
-                <h2>Search Results</h2>
-                <div id="resultsContainer" class="results-grid"></div>
-            </section>
-            <section class="recent-searches">
-                <h2>Recent Searches</h2>
-                <ul id="recentSearches"></ul>
-            </section>
-        </main>
+  <button class="logout-btn" onclick="logoutUser()">Logout</button>
+
+  <div class="container">
+    <h1><i class="fas fa-search"></i> MediaNest Search</h1>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search for media (e.g., nature, music, sunset)..." aria-label="Search for media" />
+      <button onclick="searchMedia()" aria-label="Search media">🔍 Search</button>
     </div>
-    <script type="module" src="search.js"></script>
+
+    <div class="filters">
+      <select id="mediaType" aria-label="Select media type">
+        <option value="images">Images</option>
+        <option value="audio">Audio</option>
+        <option value="videos">Videos</option>
+      </select>
+      <select id="licenseType" aria-label="Select license type">
+        <option value="">Any License</option>
+        <option value="CC0">CC0</option>
+        <option value="CC-BY">CC-BY</option>
+        <option value="CC-BY-SA">CC-BY-SA</option>
+        <option value="CC-BY-NC">CC-BY-NC</option>
+        <option value="CC-BY-NC-SA">CC-BY-NC-SA</option>
+        <option value="CC-BY-ND">CC-BY-ND</option>
+        <option value="CC-BY-NC-ND">CC-BY-NC-ND</option>
+      </select>
+    </div>
+
+    <div class="recent-searches">
+      <h2>Recent Searches</h2>
+      <ul id="recentSearches"></ul>
+    </div>
+
+    <p class="loading" id="loadingText">Loading results...</p>
+
+    <div class="results" id="resultsContainer"></div>
+  </div>
+  <footer>© 2025 MediaNest – A hub for discovering open-license media</footer>
 </body>
 </html>
