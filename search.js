@@ -1,6 +1,3 @@
-// MediaNest Search Script
-// Written by OBIIO
-// This code handles searching media (images, audio, videos) and showing search history
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
@@ -18,19 +15,16 @@ const firebaseConfig = {
 };
 
 // Start Firebase
-console.log("Initializing Firebase...");
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Disable Firestore offline persistence to avoid storage errors
-disableNetwork(db).then(() => {
-  console.log("Firestore offline persistence disabled");
-}).catch((error) => {
+disableNetwork(db).catch((error) => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
-// Pexels API key
+// Pexels API key 
 const PEXELS_API_KEY = "F6EjgGWyOfrdxCaWKJ7jUOhL8Eg3BxVc4UHZdkoSGXUjUgGx3ph3Ogyf";
 
 // Function to validate DOM elements
@@ -39,26 +33,10 @@ function validateDOMElements() {
   const resultsContainer = document.getElementById("resultsContainer");
   const loadingIndicator = document.getElementById("loadingText");
   const licenseType = document.getElementById("licenseType");
-  if (recentSearchesList) {
-    const styles = window.getComputedStyle(recentSearchesList);
-    console.log("recentSearches styles:", {
-      display: styles.display,
-      visibility: styles.visibility,
-      opacity: styles.opacity,
-      height: styles.height
-    });
-  } else {
+  if (!recentSearchesList) {
     console.error("Error: <ul id='recentSearches'> not found in DOM");
   }
-  if (resultsContainer) {
-    const styles = window.getComputedStyle(resultsContainer);
-    console.log("resultsContainer styles:", {
-      display: styles.display,
-      visibility: styles.visibility,
-      opacity: styles.opacity,
-      height: styles.height
-    });
-  } else {
+  if (!resultsContainer) {
     console.error("Error: <div id='resultsContainer'> not found in DOM");
   }
   if (!loadingIndicator) console.error("Error: <div id='loadingText'> not found in DOM");
@@ -97,11 +75,9 @@ function loadCachedSearches() {
     recentSearchesList.innerHTML = "";
     if (cachedSearches.length === 0) {
       recentSearchesList.innerHTML = "<p>No recent searches yet.</p>";
-      console.log("No cached searches found");
       return;
     }
     cachedSearches.forEach((data, index) => {
-      console.log("Rendering cached search:", data);
       const listItem = document.createElement("li");
       listItem.innerHTML = `
         ${data.query} (${data.mediaType}, ${data.license || 'Any License'})
@@ -140,7 +116,6 @@ function deleteCachedSearch(index) {
 export function logoutUser() {
   signOut(auth)
     .then(() => {
-      console.log("User logged out successfully");
       localStorage.removeItem("recentSearches");
       localStorage.removeItem("cachedResults");
       alert("Logged out!");
@@ -154,14 +129,11 @@ export function logoutUser() {
 
 // Check if user is logged in
 onAuthStateChanged(auth, (user) => {
-  console.log("Auth state changed, user:", user ? user.uid : null);
   validateDOMElements();
   loadCachedSearches(); // Load localStorage immediately
   if (!user) {
-    console.log("No user logged in, using cached searches");
     window.location.href = "login.html";
   } else {
-    console.log("User authenticated:", user.uid);
     loadRecentSearches(user); // Load Firestore in background
   }
 });
@@ -186,7 +158,6 @@ function getCachedResults(query, mediaType, license) {
     const cacheKey = `${query}_${mediaType}_${license || 'none'}`;
     const cachedData = JSON.parse(localStorage.getItem("cachedResults") || "{}");
     if (cachedData[cacheKey] && cachedData[cacheKey].timestamp > Date.now() - 7 * 24 * 60 * 60 * 1000) {
-      console.log("Using cached API results for:", cacheKey);
       return cachedData[cacheKey].data;
     }
     return null;
@@ -203,7 +174,6 @@ function saveCachedResults(query, mediaType, license, data) {
     const cachedData = JSON.parse(localStorage.getItem("cachedResults") || "{}");
     cachedData[cacheKey] = { data, timestamp: Date.now() };
     localStorage.setItem("cachedResults", JSON.stringify(cachedData));
-    console.log("Saved API results to cache:", cacheKey);
   } catch (error) {
     console.error("Error saving cached results:", error);
   }
@@ -247,7 +217,6 @@ export async function searchMedia() {
 
     let data;
     if (apiUrl) {
-      console.log("Fetching from Pexels API:", apiUrl);
       const response = await fetchWithTimeout(apiUrl);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -258,7 +227,6 @@ export async function searchMedia() {
         throw new Error(errorMessage);
       }
       data = await response.json();
-      console.log("Pexels API response:", JSON.stringify(data, null, 2));
     } else {
       data = { results: [] }; // Fallback for audio
     }
@@ -275,7 +243,6 @@ export async function searchMedia() {
   } catch (error) {
     console.error("Error fetching media:", error);
     if (error.name === "AbortError") {
-      console.log("API request timed out, attempting fallback...");
       const cachedResults = getCachedResults(searchInput, selectedMediaType, selectedLicense);
       if (cachedResults) {
         renderResults(cachedResults, resultsContainer, selectedMediaType, selectedLicense);
@@ -347,7 +314,6 @@ function renderResults(data, resultsContainer, mediaType, license) {
     mediaItem.classList.add("media-item");
 
     if (mediaType === "images" && item.src?.medium) {
-      console.log("Rendering image:", item.src.medium);
       mediaItem.innerHTML = `
         <img src="${item.src.medium}" alt="${item.alt || 'Image'}" class="media-content" onerror="this.src='https://placehold.co/300x200?text=Image+Not+Found'; this.alt='Image not available'; console.error('Failed to load image: ${item.src.medium}');">
         <h3 class="media-title">${item.alt || 'Untitled'}</h3>
@@ -355,7 +321,6 @@ function renderResults(data, resultsContainer, mediaType, license) {
         <p>License: ${license || 'Pexels License'}</p>
       `;
     } else if (mediaType === "audio") {
-      console.log("Rendering default audio (Pexels does not support audio)");
       mediaItem.innerHTML = `
         <h3 class="media-title">Default Audio</h3>
         <p>Creator: Unknown</p>
@@ -366,7 +331,6 @@ function renderResults(data, resultsContainer, mediaType, license) {
         </audio>
       `;
     } else if (mediaType === "videos" && item.video_files?.[0]?.link) {
-      console.log("Rendering video:", item.video_files[0].link);
       mediaItem.innerHTML = `
         <h3 class="media-title">${item.alt || 'Untitled'}</h3>
         <p>Creator: ${item.user?.name || 'Unknown'}</p>
@@ -396,7 +360,6 @@ async function saveSearchHistory(query, mediaType, license) {
     cachedSearches.unshift(searchData);
     if (cachedSearches.length > 10) cachedSearches.pop();
     localStorage.setItem("recentSearches", JSON.stringify(cachedSearches));
-    console.log("Saved search to localStorage:", searchData);
     loadCachedSearches(); // Immediate display
   } catch (error) {
     console.error("Error saving to localStorage:", error);
@@ -410,7 +373,6 @@ async function saveSearchHistory(query, mediaType, license) {
   // Save to Firestore in background
   addDoc(collection(db, "users", currentUser.uid, "searchHistory"), searchData)
     .then(() => {
-      console.log("Saved search to Firestore for user:", currentUser.uid);
       loadRecentSearches(currentUser);
     })
     .catch((error) => {
@@ -431,7 +393,6 @@ async function deleteSearchHistory(docId) {
 
   try {
     await deleteDoc(doc(db, "users", currentUser.uid, "searchHistory", docId));
-    console.log("Deleted search for user:", currentUser.uid);
     loadRecentSearches(currentUser);
   } catch (error) {
     console.error("Error deleting search:", error);
@@ -456,14 +417,12 @@ async function loadRecentSearches(user) {
       const searches = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        console.log("Found search:", data);
         searches.push({ id: doc.id, ...data });
       });
 
       if (searches.length > 0) {
         try {
           localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 10)));
-          console.log("Updated localStorage with Firestore searches");
           loadCachedSearches();
         } catch (error) {
           console.error("Error updating localStorage:", error);
