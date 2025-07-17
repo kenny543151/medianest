@@ -59,8 +59,19 @@
             margin-top: 10px;
         }
 
-        .loading img {
+        .loading-spinner {
             width: 30px;
+            height: 30px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .error-msg {
@@ -92,7 +103,7 @@
         <button id="loginBtn" class="login-btn">Login</button>
 
         <div class="loading" id="loadingSpinner">
-            <img src="loading.gif" alt="Loading...">
+            <div class="loading-spinner"></div>
         </div>
 
         <p class="error-msg" id="errorMsg"></p>
@@ -125,18 +136,6 @@
         const loadingSpinner = document.getElementById("loadingSpinner");
         const errorMsg = document.getElementById("errorMsg");
 
-        if (!loginBtn) {
-            console.error("Error: loginBtn element not found!");
-            return;
-        }
-        if (!loadingSpinner) {
-            console.error("Error: loadingSpinner element not found!");
-            return;
-        }
-        if (!errorMsg) {
-            console.error("Error: errorMsg element not found!");
-            return;
-        }
 
         loginBtn.addEventListener("click", () => { 
             const email = document.getElementById("email").value.trim();
@@ -154,17 +153,17 @@
 
             signInWithEmailAndPassword(auth, email, password)
                 .then((userCredential) => {
-                    console.log("Login successful, user:", userCredential.user.uid);
+                    
                     window.location.href = "search.html"; // Redirect to search page
                 })
                 .catch((error) => {
-                    console.error("Login error:", error.message);
                     errorMsg.textContent = `Login failed: ${error.message}`;
                 })
                 .finally(() => {
                     // Hide loading spinner
                     loadingSpinner.style.display = "none";
                     loginBtn.disabled = false; // Re-enable button
+                    
                 });
         });
     });
