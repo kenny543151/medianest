@@ -102,52 +102,72 @@
 
     <script type="module">
     // Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 
-// ✅ Firebase configuration object
-const firebaseConfig = {
-    apiKey: "AIzaSyCdQD76M1BsVvYz1wqBG3wQjrzYFAxcFhw",
-  authDomain: "medianest-b5bbe.firebaseapp.com",
-  databaseURL: "https://medianest-b5bbe-default-rtdb.firebaseio.com",
-  projectId: "medianest-b5bbe",
-  storageBucket: "medianest-b5bbe.firebasestorage.app",
-  messagingSenderId: "38562067961",
-  appId: "1:38562067961:web:0c76369a869e4270ff3928"
-};
+    // Firebase configuration object
+    const firebaseConfig = {
+        apiKey: "AIzaSyCdQD76M1BsVvYz1wqBG3wQjrzYFAxcFhw",
+        authDomain: "medianest-b5bbe.firebaseapp.com",
+        databaseURL: "https://medianest-b5bbe-default-rtdb.firebaseio.com",
+        projectId: "medianest-b5bbe",
+        storageBucket: "medianest-b5bbe.firebasestorage.app",
+        messagingSenderId: "38562067961",
+        appId: "1:38562067961:web:0c76369a869e4270ff3928"
+    };
 
-// ✅ Initialize Firebase (must be done before calling getAuth)
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app); // ✅ Pass the app instance
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app); 
 
-// ✅ Ensure this runs only after Firebase is loaded
+    document.addEventListener("DOMContentLoaded", function () {
+        const loginBtn = document.getElementById("loginBtn");
+        const loadingSpinner = document.getElementById("loadingSpinner");
+        const errorMsg = document.getElementById("errorMsg");
 
-document.addEventListener("DOMContentLoaded", function () {
-    const loginBtn = document.getElementById("loginBtn");
+        if (!loginBtn) {
+            console.error("Error: loginBtn element not found!");
+            return;
+        }
+        if (!loadingSpinner) {
+            console.error("Error: loadingSpinner element not found!");
+            return;
+        }
+        if (!errorMsg) {
+            console.error("Error: errorMsg element not found!");
+            return;
+        }
 
-    if (!loginBtn) {
-        console.error("Error: loginBtn element not found!");
-        return;
-    }
+        loginBtn.addEventListener("click", () => { 
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value.trim();
 
-    loginBtn.addEventListener("click", () => {  // ✅ Changed from form submit to button click
-        const email = document.getElementById("email").value;
-        const password = document.getElementById("password").value;
+            if (!email || !password) {
+                errorMsg.textContent = "Please enter both email and password.";
+                return;
+            }
 
-        signInWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
-                console.log("Login successful!");
-                window.location.href = "search.html"; // ✅ Redirect to search page
-            })
-            .catch((error) => {
-                console.error("Login error:", error.message);
-                alert("Login failed: " + error.message);
-            });
+            // Show loading spinner
+            loadingSpinner.style.display = "block";
+            errorMsg.textContent = ""; // Clear previous errors
+            loginBtn.disabled = true; // Disable button during login
+
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    console.log("Login successful, user:", userCredential.user.uid);
+                    window.location.href = "search.html"; // Redirect to search page
+                })
+                .catch((error) => {
+                    console.error("Login error:", error.message);
+                    errorMsg.textContent = `Login failed: ${error.message}`;
+                })
+                .finally(() => {
+                    // Hide loading spinner
+                    loadingSpinner.style.display = "none";
+                    loginBtn.disabled = false; // Re-enable button
+                });
+        });
     });
-});
-
-
-
     </script>
 
 </body>
