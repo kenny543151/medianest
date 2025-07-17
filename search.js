@@ -30,8 +30,8 @@ disableNetwork(db).then(() => {
   console.error("Error disabling Firestore offline persistence:", error);
 });
 
-// Pexels API key (replace with your own from https://www.pexels.com/api/)
-const PEXELS_API_KEY = "YOUR_PEXELS_API_KEY_HERE"; // Get from https://www.pexels.com/api/
+// Pexels API key
+const PEXELS_API_KEY = "F6EjgGWyOfrdxCaWKJ7jUOhL8Eg3BxVc4UHZdkoSGXUjUgGx3ph3Ogyf";
 
 // Function to validate DOM elements
 function validateDOMElements() {
