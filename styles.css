@@ -1,48 +1,46 @@
+:root {
+    --primary: #4CB5AB;
+    --accent: #FF8566;
+    --background: #F7F9FA;
+    --text: #333A40;
+    --gradient: linear-gradient(135deg, #4CB5AB, #66d9cc);
+}
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Open Sans', sans-serif;
 }
 
 body {
-    font-family: Arial, sans-serif;
+    background: var(--background);
+    color: var(--text);
     line-height: 1.6;
-    background-color: #f4f4f4;
-    color: #333;
+}
+
+h1, h2, h3 {
+    font-family: 'Poppins', sans-serif;
+}
+
+.header {
+    background: var(--gradient);
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+    font-size: 2.2em;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
-}
-
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background-color: #007bff;
-    color: white;
-    border-radius: 8px;
-    margin-bottom: 20px;
-}
-
-header h1 {
-    font-size: 24px;
-}
-
-#logoutButton {
-    padding: 10px 20px;
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-#logoutButton:hover {
-    background-color: #c82333;
 }
 
 .search-container {
@@ -55,10 +53,12 @@ header h1 {
 .search-container input,
 .search-container select,
 .search-container button {
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    padding: 12px;
+    font-size: 1em;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    background: #f9f9f9;
 }
 
 .search-container input {
@@ -70,21 +70,40 @@ header h1 {
     min-width: 150px;
 }
 
-.search-container button {
-    background-color: #007bff;
+.search-container select[style*="display: none"] {
+    display: none !important;
+}
+
+.search-container button.btn {
+    background: var(--gradient);
     color: white;
     border: none;
     cursor: pointer;
 }
 
-.search-container button:hover {
-    background-color: #0056b3;
+.search-container button.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
-#loadingText {
+#logoutButton.btn {
+    background: var(--accent);
+}
+
+#logoutButton.btn:hover {
+    background: #e06b50;
+}
+
+.loader {
+    display: none;
     text-align: center;
-    font-size: 18px;
-    margin: 20px 0;
+    padding: 20px;
+    font-size: 1.2em;
+    color: var(--primary);
+}
+
+.loader.active {
+    display: block;
 }
 
 .results-section,
@@ -94,43 +113,43 @@ header h1 {
 
 .results-section h2,
 .recent-searches h2 {
-    font-size: 20px;
-    margin-bottom: 10px;
+    font-size: 1.5em;
+    margin-bottom: 15px;
 }
 
 .results-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;
 }
 
-.media-item {
-    background-color: white;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.media-item img,
-.media-item video {
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.media-content {
     width: 100%;
     height: auto;
     border-radius: 8px;
     margin-bottom: 10px;
 }
 
-.media-item audio {
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-.media-item h3 {
-    font-size: 18px;
+.media-title {
+    font-size: 1.2em;
     margin-bottom: 5px;
 }
 
-.media-item p {
-    font-size: 14px;
+.card p {
+    font-size: 0.9em;
     color: #666;
 }
 
@@ -139,31 +158,39 @@ header h1 {
     padding: 0;
 }
 
-.recent-searches li {
+.recent-searches li.card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px;
-    background-color: white;
+    padding: 15px;
     margin-bottom: 10px;
-    border-radius: 4px;
-    cursor: pointer;
 }
 
-.recent-searches li button {
-    padding: 5px 10px;
-    background-color: #dc3545;
+.recent-searches li.card button {
+    padding: 8px 16px;
+    background: var(--accent);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
+    font-family: 'Poppins', sans-serif;
 }
 
-.recent-searches li button:hover {
-    background-color: #c82333;
+.recent-searches li.card button:hover {
+    background: #e06b50;
 }
 
-@media (max-width: 600px) {
+.error {
+    color: var(--accent);
+    font-size: 0.9em;
+    margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
     .search-container {
         flex-direction: column;
     }
@@ -172,5 +199,13 @@ header h1 {
     .search-container select,
     .search-container button {
         width: 100%;
+    }
+
+    .header h1 {
+        font-size: 1.8em;
+    }
+
+    .results-grid {
+        grid-template-columns: 1fr;
     }
 }
