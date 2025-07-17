@@ -1,6 +1,6 @@
 // MediaNest Search Script
 // Written by OBIIO
-// This code handles searching media and showing search history
+// This code handles searching media (images, audio, videos) and showing search history
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
@@ -258,7 +258,7 @@ export async function searchMedia() {
           <p>Creator: Unknown</p>
           <p>License: Unknown</p>
         `;
-      } else {
+      } else if (selectedMediaType === "audio") {
         mediaItem.innerHTML = `
           <h3 class="media-title">Default Audio</h3>
           <p>Creator: Unknown</p>
@@ -267,6 +267,16 @@ export async function searchMedia() {
             <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
             Your browser does not support the audio element.
           </audio>
+        `;
+      } else if (selectedMediaType === "videos") {
+        mediaItem.innerHTML = `
+          <h3 class="media-title">Default Video</h3>
+          <p>Creator: Unknown</p>
+          <p>License: Unknown</p>
+          <video controls width="100%" style="border-radius: 8px;" poster="https://placehold.co/150x150?text=Default+Video">
+            <source src="https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4" type="video/mp4">
+            Your browser does not support the video element.
+          </video>
         `;
       }
       resultsContainer.appendChild(mediaItem);
@@ -310,6 +320,17 @@ function renderResults(data, resultsContainer, mediaType, license) {
           <source src="${item.url}" type="audio/mpeg">
           Your browser does not support the audio element.
         </audio>
+      `;
+    } else if (mediaType === "videos" && item.url) {
+      console.log("Rendering video:", item.url);
+      mediaItem.innerHTML = `
+        <h3 class="media-title">${item.title || 'Untitled'}</h3>
+        <p>Creator: ${item.creator || 'Unknown'}</p>
+        <p>License: ${item.license || 'Unknown'}</p>
+        <video controls width="100%" style="border-radius: 8px;" poster="https://placehold.co/150x150?text=Video+Thumbnail" onerror="this.poster='https://placehold.co/150x150?text=Video+Not+Found'; console.error('Failed to load video: ${item.url}');">
+          <source src="${item.url}" type="video/mp4">
+          Your browser does not support the video element.
+        </video>
       `;
     } else {
       console.error("Media not available for item:", item);
