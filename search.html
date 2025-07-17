@@ -15,7 +15,7 @@
         </header>
         <main>
             <div class="search-container">
-                <input type="text" id="searchInput" placeholder="Search for media...">
+                <input type="text" id="searchInput" placeholder="Search for media (e.g., nature, music, sunset)...">
                 <select id="mediaType">
                     <option value="images">Images</option>
                     <option value="audio">Audio</option>
@@ -23,22 +23,19 @@
                 </select>
                 <select id="licenseType">
                     <option value="">Any License</option>
-                    <option value="CC0">CC0</option>
-                    <option value="CC-BY">CC-BY</option>
-                    <option value="CC-BY-SA">CC-BY-SA</option>
-                    <option value="CC-BY-NC">CC-BY-NC</option>
-                    <option value="CC-BY-NC-SA">CC-BY-NC-SA</option>
-                    <option value="CC-BY-ND">CC-BY-ND</option>
-                    <option value="CC-BY-NC-ND">CC-BY-NC-ND</option>
+                    <option value="pexels">Pexels License</option>
                 </select>
                 <button onclick="searchMedia()">Search</button>
             </div>
             <div id="loadingText" style="display: none;">Loading...</div>
-            <div id="resultsContainer"></div>
-            <div class="recent-searches">
+            <section class="results-section">
+                <h2>Search Results</h2>
+                <div id="resultsContainer" class="results-grid"></div>
+            </section>
+            <section class="recent-searches">
                 <h2>Recent Searches</h2>
                 <ul id="recentSearches"></ul>
-            </div>
+            </section>
         </main>
     </div>
     <script type="module" src="search.js"></script>
