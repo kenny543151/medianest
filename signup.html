@@ -122,7 +122,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// 🔥 Fix: Use initializeFirestore properly
 const db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
     useFetchStreams: false
@@ -145,7 +144,7 @@ const db = initializeFirestore(app, {
                     const user = userCredential.user;
                     console.log("User created:", user.uid);
     
-                    // ✅ Save user to Firestore
+                    // Save user to Firestore
                     await setDoc(doc(db, "users", user.uid), {
                         username: username,
                         email: email,
