@@ -6,16 +6,15 @@
     <title>MediaNest - Search Media</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&family=Poppins:wght@500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="header">
-        <h1>MediaNest</h1>
-        <button class="btn" id="logoutButton" onclick="logoutUser()">Logout</button>
-    </header>
     <div class="container">
+        <header>
+            <h1>MediaNest</h1>
+            <button id="logoutButton" onclick="logoutUser()">Logout</button>
+        </header>
         <main>
-            <div class="search-container card">
+            <div class="search-container">
                 <input type="text" id="searchInput" placeholder="Search for media (e.g., nature, music, sunset)...">
                 <select id="mediaType">
                     <option value="images">Images</option>
@@ -26,9 +25,9 @@
                     <option value="">Any License</option>
                     <option value="pexels">Pexels License</option>
                 </select>
-                <button class="btn" onclick="searchMedia()">Search</button>
+                <button onclick="searchMedia()">Search</button>
             </div>
-            <div id="loadingText" class="loader">Loading...</div>
+            <div id="loadingText" style="display: none;">Loading...</div>
             <section class="results-section">
                 <h2>Search Results</h2>
                 <div id="resultsContainer" class="results-grid"></div>
